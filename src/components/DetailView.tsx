@@ -26,6 +26,7 @@ export const DetailView: React.FC = () => {
     setSelectedId,
     selectedTransformer,
     showToast,
+    triggerSync,
   } = useTransformers();
 
   const [mobileTab, setMobileTab] = useState<'all' | 'telemetry' | 'protection' | 'location'>('all');
@@ -106,9 +107,9 @@ export const DetailView: React.FC = () => {
               ))}
             </select>
             <button
-              onClick={() => showToast(`รีเฟรชข้อมูลของ ${tr?.id} สำเร็จ`, 'REFRESH_OK', 'info')}
+              onClick={() => triggerSync()}
               className="p-1.5 text-slate-500 hover:text-[#006948] hover:bg-white rounded-lg transition-colors shrink-0"
-              title="รีเฟรชข้อมูล SCADA"
+              title="รีเฟรชและซิงค์ข้อมูลกับเซิร์ฟเวอร์"
             >
               <RefreshCw className="w-4 h-4" />
             </button>

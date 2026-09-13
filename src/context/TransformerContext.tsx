@@ -1,6 +1,19 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab } from '../types';
 import { DEFAULT_TRANSFORMERS, DEFAULT_ACCOUNTS, INITIAL_AUDIT_LOGS } from '../data/defaultData';
+import {
+  fetchTransformersApi,
+  saveTransformersApi,
+  saveSingleTransformerApi,
+  deleteTransformerApi,
+  resetTransformersApi,
+  fetchAccountsApi,
+  saveAccountApi,
+  updateAccountApi,
+  fetchAuditLogsApi,
+  addAuditLogApi,
+  fetchSyncStatusApi,
+} from '../lib/api';
 
 const STORAGE_KEY = 'smart_transformer_db';
 const ACCOUNTS_STORAGE_KEY = 'pea_access_requests';
@@ -189,7 +202,84 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   }, [toast.show]);
 
-  // Persist transformers to localStorage & BroadcastChannel
+  const lastSyncTimestamp = useRef<number>(0);
+  const isSyncing = useRef<boolean>(false);
+
+  // Sync latest data from server to ensure all devices show identical data
+  const syncFromServer = async (showNotification = false) => {
+    if (isSyncing.current) return;
+    isSyncing.current = true;
+    try {
+      const [trRes, accRes, logRes] = await Promise.all([
+        fetchTransformersApi(),
+        fetchAccountsApi(),
+        fetchAuditLogsApi(),
+      ]);
+
+      if (trRes && Array.isArray(trRes.data) && trRes.data.length > 0) {
+        setTransformers(trRes.data);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(trRes.data));
+        if (trRes.lastUpdated) {
+          lastSyncTimestamp.current = Math.max(lastSyncTimestamp.current, trRes.lastUpdated);
+        }
+      }
+
+      if (accRes && Array.isArray(accRes.data) && accRes.data.length > 0) {
+        setAccounts(accRes.data);
+        localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accRes.data));
+      }
+
+      if (logRes && Array.isArray(logRes.data) && logRes.data.length > 0) {
+        setAuditLogs(logRes.data);
+      }
+
+      if (showNotification) {
+        showToast('ซิงค์ข้อมูลกับเซิร์ฟเวอร์กลางสำเร็จ ข้อมูลตรงกันทุกอุปกรณ์', 'SERVER_SYNC_OK', 'info');
+      }
+    } catch (e) {
+      console.warn('Sync from server error:', e);
+    } finally {
+      isSyncing.current = false;
+    }
+  };
+
+  // Initial load from server on mount
+  useEffect(() => {
+    syncFromServer();
+  }, []);
+
+  // Periodic polling (every 3s) & instant sync when tab is focused/visible
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await fetchSyncStatusApi();
+        if (status && status.lastUpdated > lastSyncTimestamp.current) {
+          await syncFromServer();
+        }
+      } catch {}
+    }, 3000);
+
+    const handleFocus = () => {
+      syncFromServer();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncFromServer();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Persist transformers to localStorage, BroadcastChannel & Server API (all devices)
   const persistTransformers = (newList: Transformer[], broadcast = true) => {
     setTransformers(newList);
     try {
@@ -201,6 +291,10 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
           channel.close();
         }
       }
+      // Cross-device server persistence
+      saveTransformersApi(newList).then(() => {
+        lastSyncTimestamp.current = Date.now();
+      });
     } catch (e) {
       console.error('Storage write error', e);
     }
@@ -216,7 +310,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  // Cross-tab broadcast listener
+  // Cross-tab broadcast listener (same device tabs)
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -258,7 +352,8 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       message,
       type,
     };
-    setAuditLogs(prev => [newItem, ...prev.slice(0, 9)]);
+    setAuditLogs(prev => [newItem, ...prev.slice(0, 49)]);
+    addAuditLogApi(message, type);
   };
 
   // Transformer actions
@@ -291,7 +386,8 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updated = [...transformers];
       updated[index] = merged;
       persistTransformers(updated);
-      showToast(`ซิงค์ข้อมูลสำเร็จ! อัปเดตข้อมูล ${record.id} เรียบร้อยแล้ว (Broadcast Synced)`, 'SCADA_SYNC_OK', 'success');
+      saveSingleTransformerApi(record.id, merged);
+      showToast(`ซิงค์ข้อมูลสำเร็จ! อัปเดตข้อมูล ${record.id} เรียบร้อยแล้ว (ซิงค์ทุกอุปกรณ์ทันที)`, 'SCADA_SYNC_OK', 'success');
       addAuditLog(`${record.id}: ปรับปรุงข้อมูลและพิกัดเสร็จสมบูรณ์ (${loadKva} kVA / ${percent}%)`, 'success');
     } else {
       const newTr: Transformer = {
@@ -319,6 +415,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       };
       updated = [...transformers, newTr];
       persistTransformers(updated);
+      saveSingleTransformerApi(record.id, newTr);
       showToast(`เพิ่มหม้อแปลงใหม่ ${record.id} เข้าสู่ระบบและบรอดแคสต์เรียบร้อย!`, 'NEW_RECORD_SYNC', 'success');
       addAuditLog(`${record.id}: บรรจุเข้าฐานข้อมูลหม้อแปลงลูกใหม่ (${kva} kVA)`, 'info');
     }
@@ -327,6 +424,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const deleteTransformer = (id: string) => {
     const updated = transformers.filter(t => t.id !== id);
     persistTransformers(updated);
+    deleteTransformerApi(id);
     if (selectedId === id && updated.length > 0) {
       setSelectedId(updated[0].id);
     }
@@ -336,14 +434,18 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const resetToDefaults = () => {
     persistTransformers(DEFAULT_TRANSFORMERS);
+    resetTransformersApi();
     setSelectedId('TR-001');
-    showToast('รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น 6 เครื่องแล้ว', 'DB_RESET', 'info');
+    showToast('รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น 6 เครื่องแล้ว (ซิงค์ทุกอุปกรณ์)', 'DB_RESET', 'info');
     addAuditLog('รีเซ็ตฐานข้อมูลกลางเป็นค่าเริ่มต้น 6 เครื่อง', 'info');
   };
 
   const triggerSync = () => {
     persistTransformers([...transformers]);
-    showToast('⚡ กระตุ้นการซิงค์ข้อมูลสดสำเร็จทุกจุดสายป้อน (100% Synced) ผ่าน BroadcastChannel', 'BROADCAST_OK', 'success');
+    saveTransformersApi(transformers).then(() => {
+      lastSyncTimestamp.current = Date.now();
+    });
+    showToast('⚡ ซิงค์ข้อมูลขึ้นเซิร์ฟเวอร์กลางเรียบร้อย ค่าตรงกันทุกอุปกรณ์ทันที (100% Synced)', 'BROADCAST_OK', 'success');
   };
 
   // Auth actions
@@ -533,6 +635,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     const updated = [newAccount, ...accounts];
     persistAccounts(updated);
+    saveAccountApi(newAccount);
 
     showToast(
       `ลงทะเบียน Gmail (${cleanEmail}) สำเร็จ! ระบบส่งคำขอไปยัง Super Admin เพื่ออนุมัติครั้งแรกเรียบร้อย`,
@@ -578,70 +681,80 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const approveRequest = (id: string | number) => {
+    const timeText = `อนุมัติโดย Super Admin เมื่อสักครู่ (${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })})`;
+    const approvedAt = new Date().toISOString();
+    const approvedBy = 'นายช่างวิศวกรอาวุโส (Super Admin)';
     const updated = accounts.map(a => {
       if (a.id === id) {
         return {
           ...a,
           status: 'approved' as const,
-          timeText: `อนุมัติโดย Super Admin เมื่อสักครู่ (${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })})`,
-          approvedAt: new Date().toISOString(),
-          approvedBy: 'นายช่างวิศวกรอาวุโส (Super Admin)',
+          timeText,
+          approvedAt,
+          approvedBy,
         };
       }
       return a;
     });
     persistAccounts(updated);
+    updateAccountApi(id, { status: 'approved', timeText, approvedAt, approvedBy });
     const target = updated.find(a => a.id === id);
     showToast(`อนุมัติสิทธิ์ให้ "${target?.name}" (${target?.email || target?.empid}) สำเร็จแล้ว! สามารถเข้าใช้งานได้ทันที`, 'REQUEST_APPROVED', 'success');
     addAuditLog(`Super Admin อนุมัติสิทธิ์ให้ ${target?.email || target?.empid} (${target?.name})`, 'success');
   };
 
   const rejectRequest = (id: string | number) => {
+    const timeText = `ปฏิเสธคำขอเมื่อสักครู่ (${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })})`;
     const updated = accounts.map(a => {
       if (a.id === id) {
         return {
           ...a,
           status: 'rejected' as const,
-          timeText: `ปฏิเสธคำขอเมื่อสักครู่ (${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })})`,
+          timeText,
         };
       }
       return a;
     });
     persistAccounts(updated);
+    updateAccountApi(id, { status: 'rejected', timeText });
     const target = updated.find(a => a.id === id);
     showToast(`ปฏิเสธคำขอของ "${target?.name}" เรียบร้อยแล้ว`, 'REQUEST_REJECTED', 'warning');
     addAuditLog(`Super Admin ปฏิเสธคำขอของ ${target?.empid} (${target?.name})`, 'warning');
   };
 
   const temporaryGrant = (id: string | number) => {
+    const timeText = 'อนุมัติชั่วคราว 24 ชั่วโมง (Auto-expire)';
     const updated = accounts.map(a => {
       if (a.id === id) {
         return {
           ...a,
           status: 'approved' as const,
-          timeText: 'อนุมัติชั่วคราว 24 ชั่วโมง (Auto-expire)',
+          timeText,
         };
       }
       return a;
     });
     persistAccounts(updated);
+    updateAccountApi(id, { status: 'approved', timeText });
     const target = updated.find(a => a.id === id);
     showToast(`อนุมัติสิทธิ์ชั่วคราว (24 ชม.) ให้ "${target?.name}" สำเร็จ`, 'TEMP_GRANT_OK', 'info');
     addAuditLog(`อนุมัติสิทธิ์ชั่วคราว (24h) ให้ ${target?.empid} (${target?.name})`, 'info');
   };
 
   const revokeAccess = (id: string | number) => {
+    const timeText = 'เพิกถอนสิทธิ์การใช้งานโดย Super Admin';
     const updated = accounts.map(a => {
       if (a.id === id) {
         return {
           ...a,
           status: 'rejected' as const,
-          timeText: 'เพิกถอนสิทธิ์การใช้งานโดย Super Admin',
+          timeText,
         };
       }
       return a;
     });
     persistAccounts(updated);
+    updateAccountApi(id, { status: 'rejected', timeText });
     const target = updated.find(a => a.id === id);
     showToast(`เพิกถอนสิทธิ์ของ "${target?.name}" สำเร็จ ระบบตัดการเชื่อมต่อทันที`, 'ACCESS_REVOKED', 'warning');
     addAuditLog(`เพิกถอนสิทธิ์ของ ${target?.empid} (${target?.name})`, 'error');
@@ -658,6 +771,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     const updated = [newAccount, ...accounts];
     persistAccounts(updated);
+    saveAccountApi(newAccount);
     showToast(`ส่งคำขอสิทธิ์สำหรับ "${data.name}" (${data.empid}) สำเร็จ รอการอนุมัติสิทธิ์`, 'REQUEST_SUBMITTED', 'info');
     addAuditLog(`${data.empid} (${data.name}) ยื่นขอสิทธิ์เข้าใช้งาน`, 'info');
   };
