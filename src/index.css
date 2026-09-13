@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Sarabun', 'Inter', system-ui, -apple-system, sans-serif;
+    color: #0b1c30;
+    background-color: #f8f9ff;
+  }
+  
+  code, kbd, samp, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.font-sans {
+  font-family: 'Sarabun', 'Inter', system-ui, sans-serif;
+}
