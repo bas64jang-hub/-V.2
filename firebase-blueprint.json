@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "Transformer": {
+      "title": "Transformer",
+      "description": "Smart transformer data with electrical and telemetry parameters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "area": { "type": "string" },
+        "kva": { "type": "number" },
+        "loadKva": { "type": "number" },
+        "loadKw": { "type": "number" },
+        "percent": { "type": "number" },
+        "voltage": { "type": "string" },
+        "pf": { "type": "string" },
+        "fuse": { "type": "string" },
+        "mccb": { "type": "string" },
+        "lat": { "type": "string" },
+        "lng": { "type": "string" },
+        "poleId": { "type": "string" },
+        "mountType": { "type": "string" },
+        "status": { "type": "string" },
+        "note": { "type": "string" },
+        "windingTemp": { "type": "number" },
+        "oilLevel": { "type": "number" },
+        "altitude": { "type": "string" }
+      },
+      "required": ["id", "name", "kva", "loadKva", "percent", "status"]
+    },
+    "AccountRecord": {
+      "title": "AccountRecord",
+      "description": "PEA user account and access request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "empid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "position": { "type": "string" },
+        "dept": { "type": "string" },
+        "status": { "type": "string" },
+        "timeText": { "type": "string" }
+      },
+      "required": ["id", "empid", "name", "role", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System event audit log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "message", "type"]
+    }
+  },
+  "firestore": {
+    "/transformers/{transformerId}": {
+      "schema": "Transformer",
+      "description": "Centralized SCADA transformers records synced across all devices"
+    },
+    "/accounts/{accountId}": {
+      "schema": "AccountRecord",
+      "description": "PEA access requests and accounts"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System audit log items"
+    }
+  }
+}

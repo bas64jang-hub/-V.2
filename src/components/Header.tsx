@@ -12,6 +12,8 @@ import {
   Radio,
   Menu,
   X,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -23,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   mobileMenuOpen = false,
   setMobileMenuOpen = (_open: boolean) => {},
 }) => {
-  const { activeTab, setActiveTab, userRole, switchRole, currentUser } = useTransformers();
+  const { activeTab, setActiveTab, userRole, switchRole, currentUser, triggerSync } = useTransformers();
 
   const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'landing', label: 'หน้าเริ่ม', icon: <Home className="w-4 h-4" /> },
@@ -100,16 +102,21 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Read-only Status & Role Display (Non-clickable) */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 select-none">
-          {/* Live Pulse */}
-          <div className="hidden xl:flex items-center gap-1 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
-            <span className="relative flex h-1.5 w-1.5">
+          {/* Live Cloud Sync indicator & button */}
+          <button
+            type="button"
+            onClick={() => triggerSync()}
+            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[#006948] px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all shadow-xs"
+            title="คลิกเพื่อซิงก์ข้อมูลคลาวด์ Firebase และตรวจสอบข้อมูลระหว่างทุกอุปกรณ์"
+          >
+            <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#006948]"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#006948]"></span>
             </span>
-            <span className="text-[10px] text-[#006948] font-bold font-mono uppercase tracking-wider">
-              ONLINE
-            </span>
-          </div>
+            <Cloud className="w-3.5 h-3.5 hidden sm:inline" />
+            <span className="font-semibold">ซิงก์คลาวด์สด</span>
+            <RefreshCw className="w-3 h-3 text-emerald-600 hover:rotate-180 transition-transform" />
+          </button>
 
           {/* Role Indicator - Read-only, cannot be clicked */}
           <div

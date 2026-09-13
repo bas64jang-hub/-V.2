@@ -14,6 +14,19 @@ import {
   addAuditLogApi,
   fetchSyncStatusApi,
 } from '../lib/api';
+import {
+  subscribeToTransformers,
+  saveTransformerToFirestore,
+  deleteTransformerFromFirestore,
+  resetTransformersInFirestore,
+  seedInitialTransformersIfEmpty,
+  subscribeToAccounts,
+  saveAccountToFirestore,
+  updateAccountInFirestore,
+  seedInitialAccountsIfEmpty,
+  subscribeToAuditLogs,
+  addAuditLogToFirestore,
+} from '../lib/firebase';
 
 const STORAGE_KEY = 'smart_transformer_db';
 const ACCOUNTS_STORAGE_KEY = 'pea_access_requests';
@@ -243,6 +256,42 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
+  // Real-time Firestore sync & initial seeding (enables live cross-device sync for guests and all Google accounts)
+  useEffect(() => {
+    // 1. Seed initial data if Firestore is currently empty
+    seedInitialTransformersIfEmpty(DEFAULT_TRANSFORMERS);
+    seedInitialAccountsIfEmpty(DEFAULT_ACCOUNTS);
+
+    // 2. Real-time Firestore listener for transformers (instant push across all devices worldwide)
+    const unsubTransformers = subscribeToTransformers((remoteTransformers) => {
+      if (Array.isArray(remoteTransformers) && remoteTransformers.length > 0) {
+        setTransformers(remoteTransformers);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteTransformers));
+      }
+    });
+
+    // 3. Real-time Firestore listener for accounts & permissions
+    const unsubAccounts = subscribeToAccounts((remoteAccounts) => {
+      if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
+        setAccounts(remoteAccounts);
+        localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(remoteAccounts));
+      }
+    });
+
+    // 4. Real-time Firestore listener for audit logs
+    const unsubLogs = subscribeToAuditLogs((remoteLogs) => {
+      if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
+        setAuditLogs(remoteLogs);
+      }
+    });
+
+    return () => {
+      unsubTransformers();
+      unsubAccounts();
+      unsubLogs();
+    };
+  }, []);
+
   // Initial load from server on mount
   useEffect(() => {
     syncFromServer();
@@ -354,6 +403,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     setAuditLogs(prev => [newItem, ...prev.slice(0, 49)]);
     addAuditLogApi(message, type);
+    addAuditLogToFirestore(newItem).catch(() => {});
   };
 
   // Transformer actions
@@ -387,7 +437,8 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updated[index] = merged;
       persistTransformers(updated);
       saveSingleTransformerApi(record.id, merged);
-      showToast(`ซิงค์ข้อมูลสำเร็จ! อัปเดตข้อมูล ${record.id} เรียบร้อยแล้ว (ซิงค์ทุกอุปกรณ์ทันที)`, 'SCADA_SYNC_OK', 'success');
+      saveTransformerToFirestore(merged).catch((e) => console.warn('Firestore save error', e));
+      showToast(`ซิงค์ข้อมูลสำเร็จ! อัปเดตข้อมูล ${record.id} เรียบร้อยแล้ว (ซิงก์ทุกอุปกรณ์ทันที)`, 'SCADA_SYNC_OK', 'success');
       addAuditLog(`${record.id}: ปรับปรุงข้อมูลและพิกัดเสร็จสมบูรณ์ (${loadKva} kVA / ${percent}%)`, 'success');
     } else {
       const newTr: Transformer = {
@@ -416,6 +467,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updated = [...transformers, newTr];
       persistTransformers(updated);
       saveSingleTransformerApi(record.id, newTr);
+      saveTransformerToFirestore(newTr).catch((e) => console.warn('Firestore save error', e));
       showToast(`เพิ่มหม้อแปลงใหม่ ${record.id} เข้าสู่ระบบและบรอดแคสต์เรียบร้อย!`, 'NEW_RECORD_SYNC', 'success');
       addAuditLog(`${record.id}: บรรจุเข้าฐานข้อมูลหม้อแปลงลูกใหม่ (${kva} kVA)`, 'info');
     }
@@ -425,6 +477,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const updated = transformers.filter(t => t.id !== id);
     persistTransformers(updated);
     deleteTransformerApi(id);
+    deleteTransformerFromFirestore(id).catch((e) => console.warn('Firestore delete error', e));
     if (selectedId === id && updated.length > 0) {
       setSelectedId(updated[0].id);
     }
@@ -435,8 +488,9 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const resetToDefaults = () => {
     persistTransformers(DEFAULT_TRANSFORMERS);
     resetTransformersApi();
+    resetTransformersInFirestore(DEFAULT_TRANSFORMERS).catch((e) => console.warn('Firestore reset error', e));
     setSelectedId('TR-001');
-    showToast('รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น 6 เครื่องแล้ว (ซิงค์ทุกอุปกรณ์)', 'DB_RESET', 'info');
+    showToast('รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น 6 เครื่องแล้ว (ซิงก์ทุกอุปกรณ์)', 'DB_RESET', 'info');
     addAuditLog('รีเซ็ตฐานข้อมูลกลางเป็นค่าเริ่มต้น 6 เครื่อง', 'info');
   };
 
@@ -445,7 +499,10 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     saveTransformersApi(transformers).then(() => {
       lastSyncTimestamp.current = Date.now();
     });
-    showToast('⚡ ซิงค์ข้อมูลขึ้นเซิร์ฟเวอร์กลางเรียบร้อย ค่าตรงกันทุกอุปกรณ์ทันที (100% Synced)', 'BROADCAST_OK', 'success');
+    for (const item of transformers) {
+      saveTransformerToFirestore(item).catch(() => {});
+    }
+    showToast('⚡ ซิงก์ข้อมูลขึ้นคลาวด์ Firebase และเซิร์ฟเวอร์เรียบร้อย ค่าตรงกันทุกอุปกรณ์ทันที', 'BROADCAST_OK', 'success');
   };
 
   // Auth actions
@@ -636,6 +693,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const updated = [newAccount, ...accounts];
     persistAccounts(updated);
     saveAccountApi(newAccount);
+    saveAccountToFirestore(newAccount).catch(() => {});
 
     showToast(
       `ลงทะเบียน Gmail (${cleanEmail}) สำเร็จ! ระบบส่งคำขอไปยัง Super Admin เพื่ออนุมัติครั้งแรกเรียบร้อย`,
@@ -698,6 +756,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     });
     persistAccounts(updated);
     updateAccountApi(id, { status: 'approved', timeText, approvedAt, approvedBy });
+    updateAccountInFirestore(id, { status: 'approved', timeText, approvedAt, approvedBy }).catch(() => {});
     const target = updated.find(a => a.id === id);
     showToast(`อนุมัติสิทธิ์ให้ "${target?.name}" (${target?.email || target?.empid}) สำเร็จแล้ว! สามารถเข้าใช้งานได้ทันที`, 'REQUEST_APPROVED', 'success');
     addAuditLog(`Super Admin อนุมัติสิทธิ์ให้ ${target?.email || target?.empid} (${target?.name})`, 'success');
@@ -717,6 +776,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     });
     persistAccounts(updated);
     updateAccountApi(id, { status: 'rejected', timeText });
+    updateAccountInFirestore(id, { status: 'rejected', timeText }).catch(() => {});
     const target = updated.find(a => a.id === id);
     showToast(`ปฏิเสธคำขอของ "${target?.name}" เรียบร้อยแล้ว`, 'REQUEST_REJECTED', 'warning');
     addAuditLog(`Super Admin ปฏิเสธคำขอของ ${target?.empid} (${target?.name})`, 'warning');
@@ -736,6 +796,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     });
     persistAccounts(updated);
     updateAccountApi(id, { status: 'approved', timeText });
+    updateAccountInFirestore(id, { status: 'approved', timeText }).catch(() => {});
     const target = updated.find(a => a.id === id);
     showToast(`อนุมัติสิทธิ์ชั่วคราว (24 ชม.) ให้ "${target?.name}" สำเร็จ`, 'TEMP_GRANT_OK', 'info');
     addAuditLog(`อนุมัติสิทธิ์ชั่วคราว (24h) ให้ ${target?.empid} (${target?.name})`, 'info');
@@ -755,6 +816,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     });
     persistAccounts(updated);
     updateAccountApi(id, { status: 'rejected', timeText });
+    updateAccountInFirestore(id, { status: 'rejected', timeText }).catch(() => {});
     const target = updated.find(a => a.id === id);
     showToast(`เพิกถอนสิทธิ์ของ "${target?.name}" สำเร็จ ระบบตัดการเชื่อมต่อทันที`, 'ACCESS_REVOKED', 'warning');
     addAuditLog(`เพิกถอนสิทธิ์ของ ${target?.empid} (${target?.name})`, 'error');
@@ -772,6 +834,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const updated = [newAccount, ...accounts];
     persistAccounts(updated);
     saveAccountApi(newAccount);
+    saveAccountToFirestore(newAccount).catch(() => {});
     showToast(`ส่งคำขอสิทธิ์สำหรับ "${data.name}" (${data.empid}) สำเร็จ รอการอนุมัติสิทธิ์`, 'REQUEST_SUBMITTED', 'info');
     addAuditLog(`${data.empid} (${data.name}) ยื่นขอสิทธิ์เข้าใช้งาน`, 'info');
   };

@@ -440,10 +440,10 @@ export const DashboardView: React.FC = () => {
         )}
       </div>
 
-      {/* Bottom Architectural Insights: Single Line Diagram & Substation Area Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2">
+      {/* Bottom Architectural Insights: Single Line Diagram (SLD) */}
+      <div className="pt-2">
         {/* SLD Mimic Card */}
-        <div className="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -464,7 +464,7 @@ export const DashboardView: React.FC = () => {
           {/* SVG SLD Circuit Diagram */}
           <div className="w-full bg-slate-50 p-4 rounded-xl border border-slate-200 overflow-x-auto flex items-center justify-center">
             <svg
-              className="w-full max-w-[650px] h-44 text-slate-800 select-none"
+              className="w-full max-w-[720px] h-44 text-slate-800 select-none"
               fill="none"
               viewBox="0 0 650 180"
               xmlns="http://www.w3.org/2000/svg"
@@ -528,66 +528,25 @@ export const DashboardView: React.FC = () => {
             </svg>
           </div>
 
-          <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
-            <span>กลุ่มเวกเตอร์: Dyn11</span>
-            <span>ความถี่ระบบ: 50.01 Hz ± 0.02</span>
-          </div>
-        </div>
-
-        {/* Substation Area Overview Card */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-sm sm:text-base text-slate-900">
-                ภาพรวมกำลังไฟฟ้าเขตพื้นที่
-              </h3>
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-[#006948]">
-                PEA Zone 3
-              </span>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-4 font-mono">
+              <span>กลุ่มเวกเตอร์: Dyn11</span>
+              <span>ความถี่ระบบ: 50.01 Hz ± 0.02</span>
             </div>
-
-            <div className="relative w-full h-36 rounded-xl overflow-hidden mb-4 border border-slate-200">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCu55H6XQKlW92ZAgNrCKFvLthZcQgUjsm2V7ic0AbjlVYqKp3s4m6_S6Q2WaClYJTzn7B7oC4zoh6MOZJC5UgHe0pEFFsJ4174USYgtoNlXm5Yd1Q8chZdjKZK9Neb0KFiunt66bkBRvXVw7nw99FHubUYiigWHDVJWRfQpCzrY0e4l3a6LirrB_Ika51UUrdHAfxnavZxmu-Vg4ApYa-Il-B_tmLzcmbuP5tcWDZidVLce31zYnrYTA"
-                alt="สถานีไฟฟ้าย่อยนิคมอุตสาหกรรม"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-transparent flex items-end p-3">
-                <span className="text-white text-xs font-semibold leading-tight">
-                  สถานีไฟฟ้าย่อยนิคมอุตสาหกรรมนครราชสีมา กฟภ. วงจรรวม #4
-                </span>
-              </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveTab('calculator')}
+                className="text-xs font-bold text-[#006948] hover:underline flex items-center gap-1"
+              >
+                <span>เปิดเครื่องมือคำนวณขนาดฟิวส์ →</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('admin')}
+                className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium"
+              >
+                <span>ระบบจัดการหม้อแปลง</span>
+              </button>
             </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
-                <span className="text-slate-600 font-medium">กำลังไฟฟ้าจ่ายจริง (Active Power):</span>
-                <span className="font-mono font-bold text-sm text-slate-900">{metrics.activeMw} MW</span>
-              </div>
-              <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
-                <span className="text-slate-600 font-medium">ค่าฮาร์มอนิกส์รวม THD (แรงดัน):</span>
-                <span className="font-mono font-bold text-[#006948]">1.8% (เกณฑ์ IEEE 519)</span>
-              </div>
-              <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200/60">
-                <span className="text-slate-600 font-medium">ฟิวส์แรงสูงแนะนำ กฟภ.:</span>
-                <span className="text-slate-900 font-bold">ชนิด Type K / Type T มาตรฐาน</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-            <button
-              onClick={() => setActiveTab('calculator')}
-              className="text-xs font-bold text-[#006948] hover:underline flex items-center gap-1"
-            >
-              <span>เปิดเครื่องมือคำนวณขนาดฟิวส์ →</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('admin')}
-              className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium"
-            >
-              <span>ระบบหลังบ้าน</span>
-            </button>
           </div>
         </div>
       </div>

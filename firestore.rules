@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    match /transformers/{transformerId} {
+      // Allow any device to read transformer data (both visitors with Gmail or without Gmail)
+      allow read: if true;
+      // Allow modifying or adding transformer data so updates immediately sync across all devices
+      allow create, update: if isValidId(transformerId) && request.resource.data.id is string;
+      allow delete: if isValidId(transformerId);
+    }
+
+    match /accounts/{accountId} {
+      allow read: if true;
+      allow create, update: if isValidId(accountId);
+      allow delete: if isValidId(accountId);
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if true;
+      allow create: if isValidId(logId);
+      allow update, delete: if false;
+    }
+  }
+}
