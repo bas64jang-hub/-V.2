@@ -601,33 +601,6 @@ export const AdminView: React.FC = () => {
                   <Lock className="w-4 h-4" />
                   <span>เข้าสู่ระบบ (เปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ)</span>
                 </button>
-
-                {/* Quick test credentials helper */}
-                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-600">ล็อกอินด่วนเพื่อทดสอบ:</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginId('Super9955');
-                        setLoginPass('13579');
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-mono text-[11px] font-bold cursor-pointer transition-colors"
-                    >
-                      👑 Super Admin (Super9955 / 13579)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginId('PEA-108842');
-                        setLoginPass('Admin@2024');
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-mono text-[11px] font-bold cursor-pointer transition-colors"
-                    >
-                      แอดมิน (PEA-108842)
-                    </button>
-                  </div>
-                </div>
               </form>
             </div>
           )}

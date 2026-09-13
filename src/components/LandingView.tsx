@@ -300,17 +300,6 @@ export const LandingView: React.FC = () => {
           </div>
         </div>
       </main>
-
-      {/* FOOTER */}
-      <footer className="w-full border-t border-emerald-950/10 bg-white/80 backdrop-blur-md px-4 sm:px-8 py-3.5 text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2 z-10 font-mono">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#006948]"></span>
-          <span>PEA Compliant System • Smart Grid Telemetry &amp; Fault Protection Engine v4.2.0</span>
-        </div>
-        <div>
-          <span>© 2024 Provincial Electricity Authority &amp; Industrial Grid Operations. All Rights Reserved.</span>
-        </div>
-      </footer>
     </div>
   );
 };
