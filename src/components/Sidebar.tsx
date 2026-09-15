@@ -12,7 +12,7 @@ import {
   Radio,
   ExternalLink,
   History,
-  Repeat,
+  Globe,
   CheckCircle2,
   AlertTriangle,
   Flame,
@@ -31,8 +31,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     activeTab,
     setActiveTab,
     userRole,
-    switchRole,
-    currentUser,
     auditLogs,
     transformers,
     triggerSync,
@@ -92,14 +90,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         } max-h-screen lg:max-h-[calc(100vh-5rem)]`}
       >
         {/* Substation & SCADA Identity Panel */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#006948] flex items-center justify-center text-white shadow-xs">
+        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-10 w-auto px-1.5 py-0.5 bg-white border border-amber-300/70 rounded-lg flex items-center justify-center shrink-0 shadow-2xs">
+              <img
+                src="/rmutl-logo.png"
+                alt="มทร.ล้านนา (RMUTL)"
+                className="h-full w-auto object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-[#006948] flex items-center justify-center text-white shadow-xs shrink-0">
               <Zap className="w-5 h-5" />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="font-bold text-sm text-slate-900 leading-tight">ระบบหม้อแปลงอัจฉริยะ</span>
-              <span className="text-[11px] text-slate-500 font-medium">กฟภ. นครราชสีมา • SCADA Grid</span>
+              <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight truncate">มทร.ล้านนา • PEA</span>
+              <span className="text-[10px] text-slate-500 font-medium truncate">กฟส.บ้านโฮ่ง จ.ลำพูน</span>
             </div>
           </div>
 
@@ -112,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-slate-500">สถานะฐานข้อมูล</span>
               <span className="inline-flex items-center gap-1.5 text-[#006948] font-semibold text-[11px]">
                 <span className="w-2 h-2 rounded-full bg-[#006948] animate-pulse"></span>
-                ออนไลน์ (ซิงค์)
+                ออนไลน์ (ซิงก์)
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -213,32 +219,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </div>
 
-        {/* Current Active Account Card */}
-        <div className="mt-auto bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
-              {currentUser?.name ? currentUser.name.slice(0, 2) : 'SE'}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-bold text-slate-900 truncate">
-                {currentUser?.name || (userRole === 'guest' ? 'ผู้เยี่ยมชม (Guest)' : 'นายช่างวิศวกรอาวุโส')}
-              </span>
-              <span className="text-[10px] text-slate-500 truncate">
-                {userRole === 'guest'
-                  ? 'โหมดอ่านอย่างเดียว'
-                  : userRole === 'superadmin'
-                  ? 'Super Admin • เขต 3'
-                  : 'Authorized Admin'}
-              </span>
-            </div>
+        {/* Public Mode Display Card (Read-only, without user switcher) */}
+        <div className="mt-auto bg-slate-50 p-3 rounded-xl border border-slate-200/90 flex items-center gap-2.5 shadow-xs">
+          <div className="w-9 h-9 rounded-full bg-emerald-100/90 text-[#006948] flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+            <Globe className="w-4 h-4" />
           </div>
-          <button
-            onClick={() => switchRole(userRole === 'admin' ? 'superadmin' : userRole === 'superadmin' ? 'guest' : 'admin')}
-            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-colors"
-            title="สลับสิทธิ์การทำงาน"
-          >
-            <Repeat className="w-4 h-4" />
-          </button>
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5">
+              โหมดสาธารณะ
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            </span>
+            <span className="text-[10px] text-slate-500 truncate">
+              บุคคลทั่วไป • การเข้าถึงแบบสาธารณะ
+            </span>
+          </div>
         </div>
       </aside>
     </>

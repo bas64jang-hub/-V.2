@@ -93,7 +93,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed) && parsed.length >= DEFAULT_TRANSFORMERS.length) {
           return parsed;
         }
       }
@@ -103,7 +103,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return DEFAULT_TRANSFORMERS;
   });
 
-  const [selectedId, setSelectedId] = useState<string>('TR-001');
+  const [selectedId, setSelectedId] = useState<string>(() => DEFAULT_TRANSFORMERS[0]?.id || 'TR23-011134');
   const [activeTab, setActiveTab] = useState<NavTab>('landing');
 
   // 2. User & Auth State
@@ -247,7 +247,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
 
       if (showNotification) {
-        showToast('ซิงค์ข้อมูลกับเซิร์ฟเวอร์กลางสำเร็จ ข้อมูลตรงกันทุกอุปกรณ์', 'SERVER_SYNC_OK', 'info');
+        showToast('ซิงก์ข้อมูลกับเซิร์ฟเวอร์กลางสำเร็จ ข้อมูลตรงกันทุกอุปกรณ์', 'SERVER_SYNC_OK', 'info');
       }
     } catch (e) {
       console.warn('Sync from server error:', e);
@@ -368,7 +368,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         channel.onmessage = (event) => {
           if (event.data?.type === 'DB_UPDATED' && Array.isArray(event.data.data)) {
             setTransformers(event.data.data);
-            showToast('ซิงค์ข้อมูลเรียลไทม์จากระบบเครือข่ายสำเร็จ', 'BROADCAST_SYNC', 'info');
+            showToast('ซิงก์ข้อมูลเรียลไทม์จากระบบเครือข่ายสำเร็จ', 'BROADCAST_SYNC', 'info');
           }
         };
       }
@@ -438,7 +438,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       persistTransformers(updated);
       saveSingleTransformerApi(record.id, merged);
       saveTransformerToFirestore(merged).catch((e) => console.warn('Firestore save error', e));
-      showToast(`ซิงค์ข้อมูลสำเร็จ! อัปเดตข้อมูล ${record.id} เรียบร้อยแล้ว (ซิงก์ทุกอุปกรณ์ทันที)`, 'SCADA_SYNC_OK', 'success');
+      showToast(`ซิงก์ข้อมูลสำเร็จ! อัปเดตข้อมูล ${record.id} เรียบร้อยแล้ว (ซิงก์ทุกอุปกรณ์ทันที)`, 'SCADA_SYNC_OK', 'success');
       addAuditLog(`${record.id}: ปรับปรุงข้อมูลและพิกัดเสร็จสมบูรณ์ (${loadKva} kVA / ${percent}%)`, 'success');
     } else {
       const newTr: Transformer = {
@@ -489,9 +489,9 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     persistTransformers(DEFAULT_TRANSFORMERS);
     resetTransformersApi();
     resetTransformersInFirestore(DEFAULT_TRANSFORMERS).catch((e) => console.warn('Firestore reset error', e));
-    setSelectedId('TR-001');
-    showToast('รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น 6 เครื่องแล้ว (ซิงก์ทุกอุปกรณ์)', 'DB_RESET', 'info');
-    addAuditLog('รีเซ็ตฐานข้อมูลกลางเป็นค่าเริ่มต้น 6 เครื่อง', 'info');
+    setSelectedId(DEFAULT_TRANSFORMERS[0]?.id || 'TR23-011134');
+    showToast(`รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น กฟส.บ้านโฮ่ง ทั้งหมด ${DEFAULT_TRANSFORMERS.length} เครื่องแล้ว (ซิงก์ทุกอุปกรณ์)`, 'DB_RESET', 'info');
+    addAuditLog(`รีเซ็ตฐานข้อมูลกลางเป็นค่าเริ่มต้น กฟส.บ้านโฮ่ง ${DEFAULT_TRANSFORMERS.length} เครื่อง`, 'info');
   };
 
   const triggerSync = () => {
@@ -509,8 +509,8 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const login = (empid: string, pass: string, otp?: string) => {
     const cleanId = empid.trim();
     if (!cleanId) {
-      showToast('กรุณาระบุยูสเซอร์เนม / รหัสเข้าใช้งาน', 'INPUT_REQUIRED', 'error');
-      return { success: false, message: 'กรุณาระบุยูสเซอร์เนม / รหัสเข้าใช้งาน' };
+      showToast('กรุณาระบุชื่อผู้ใช้งาน / รหัสเข้าใช้งาน', 'INPUT_REQUIRED', 'error');
+      return { success: false, message: 'กรุณาระบุชื่อผู้ใช้งาน / รหัสเข้าใช้งาน' };
     }
 
     // 1. Super Admin Check: Super9955 / 13579
@@ -552,8 +552,8 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     );
 
     if (!account) {
-      showToast(`ไม่พบยูสเซอร์เนม "${cleanId}" ในระบบ กรุณากดขอสิทธิ์เข้าถึง`, 'AUTH_NOT_FOUND', 'error');
-      return { success: false, message: `ไม่พบยูสเซอร์เนม "${cleanId}" ในระบบ กรุณากดขอสิทธิ์เข้าถึง` };
+      showToast(`ไม่พบชื่อผู้ใช้งาน "${cleanId}" ในระบบ กรุณากดขอสิทธิ์เข้าถึง`, 'AUTH_NOT_FOUND', 'error');
+      return { success: false, message: `ไม่พบชื่อผู้ใช้งาน "${cleanId}" ในระบบ กรุณากดขอสิทธิ์เข้าถึง` };
     }
 
     // Check Approval Status
@@ -634,7 +634,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
           'GMAIL_LOGIN_OK',
           'success'
         );
-        addAuditLog(`${cleanEmail} (${existing.name}): ซิงค์ล็อกอินผ่าน Gmail สำเร็จ (สิทธิ์อนุมัติแล้ว)`, 'success');
+        addAuditLog(`${cleanEmail} (${existing.name}): ซิงก์ล็อกอินผ่าน Gmail สำเร็จ (สิทธิ์อนุมัติแล้ว)`, 'success');
 
         return {
           success: true,

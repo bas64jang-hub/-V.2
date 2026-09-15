@@ -143,8 +143,8 @@ export const AdminView: React.FC = () => {
     currentUser?.name?.toLowerCase() === 'super9955';
 
   // Transformer Editor State
-  const [editingId, setEditingId] = useState<string>('TR-001');
-  const [formId, setFormId] = useState<string>('TR-001');
+  const [editingId, setEditingId] = useState<string>(() => transformers[0]?.id || 'TR23-011134');
+  const [formId, setFormId] = useState<string>(() => transformers[0]?.id || 'TR23-011134');
   const [formName, setFormName] = useState<string>('');
   const [formArea, setFormArea] = useState<string>('');
   const [formKva, setFormKva] = useState<number>(500);
@@ -250,7 +250,7 @@ export const AdminView: React.FC = () => {
     const cleanEmail = reqEmail.trim();
 
     if (!cleanEmpid || !cleanName) {
-      showToast('กรุณาระบุชื่อและรหัสเข้าใช้งาน / ยูสเซอร์เนม', 'VALIDATION_ERR', 'error');
+      showToast('กรุณาระบุชื่อและรหัสเข้าใช้งาน / ชื่อผู้ใช้', 'VALIDATION_ERR', 'error');
       return;
     }
 
@@ -326,8 +326,8 @@ export const AdminView: React.FC = () => {
     const nextId = `TR-${String(nextNum).padStart(3, '0')}`;
     setEditingId(nextId);
     setFormId(nextId);
-    setFormName(`สถานีจ่ายไฟชุมชนใหม่ โซน ${String.fromCharCode(65 + transformers.length)}`);
-    setFormArea('ต.เมืองใหม่ อ.เมืองนครราชสีมา (ขยายเขตบริการ กฟภ.)');
+    setFormName(`สถานีจ่ายไฟชุมชนใหม่ โซน ${String.fromCharCode(65 + (transformers.length % 26))}`);
+    setFormArea('กฟส.บ้านโฮ่ง จ.ลำพูน (ขยายเขตบริการ กฟภ.)');
     setFormKva(500);
     setFormLoadKva(250);
     setFormVoltage('22 kV / 400-230 V');
@@ -387,6 +387,98 @@ export const AdminView: React.FC = () => {
     showToast(`ส่งออกรายงานสรุปพิกัดหม้อแปลง (${transformers.length} เครื่อง) สำเร็จ!`, 'EXPORT_OK', 'success');
   };
 
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) return;
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length <= 1) {
+          showToast('ไฟล์ไม่มีข้อมูลหม้อแปลง', 'IMPORT_EMPTY', 'warning');
+          return;
+        }
+
+        const newParsed: Transformer[] = [];
+        const seenIds = new Set<string>();
+
+        for (let i = 1; i < lines.length; i++) {
+          const row = lines[i].split(',');
+          if (!row || row.length < 2) continue;
+          const peaNo = row[0].trim().replace(/^"|"$/g, '');
+          if (!peaNo || !peaNo.startsWith('TR') || seenIds.has(peaNo)) continue;
+          seenIds.add(peaNo);
+
+          const kva = parseFloat(row[1]?.trim().replace(/^"|"$/g, '')) || 100;
+          const phase = parseInt(row[2]?.trim().replace(/^"|"$/g, '')) || 3;
+          const rawName = row[20]?.trim().replace(/^"|"$/g, '') || `หม้อแปลง ${peaNo}`;
+          const lat = row[18]?.trim().replace(/^"|"$/g, '') || '18.3312';
+          const lng = row[19]?.trim().replace(/^"|"$/g, '') || '98.8105';
+          const pct = parseFloat(row[17]?.trim().replace(/^"|"$/g, '') || row[38]?.trim().replace(/^"|"$/g, '') || '0') || 0;
+          const loadKva = Number((kva * (pct / 100)).toFixed(1));
+          const loadKw = Number((loadKva * 0.9).toFixed(1));
+
+          let fuse = '6T Type K';
+          let mccb = '175A 3P';
+          if (phase === 1) {
+            fuse = kva <= 30 ? '2T Type K' : '3T Type K';
+            mccb = kva <= 30 ? '100A 1P' : '125A 1P';
+          } else {
+            if (kva <= 50) { fuse = '3T Type K'; mccb = '100A 3P'; }
+            else if (kva <= 100) { fuse = '6T Type K'; mccb = '175A 3P'; }
+            else if (kva <= 160) { fuse = '8T Type K'; mccb = '300A 3P'; }
+            else if (kva <= 250) { fuse = '15T Type K'; mccb = '400A 3P'; }
+            else if (kva <= 315) { fuse = '15T Type K'; mccb = '500A 3P'; }
+            else { fuse = '25T Type K'; mccb = '800A 3P'; }
+          }
+
+          const status = pct >= 80 ? 'critical' : (pct >= 60 ? 'warning' : 'normal');
+
+          newParsed.push({
+            id: peaNo,
+            name: rawName,
+            area: `กฟส.บ้านโฮ่ง จ.ลำพูน (${row[36]?.trim() ? 'ฟีดเดอร์ ' + row[36].trim() : 'ระบบจำหน่าย'})`,
+            kva,
+            loadKva,
+            loadKw,
+            percent: pct,
+            voltage: phase === 1 ? '22 kV / 460-230 V' : '22 kV / 400-230 V',
+            pf: '0.90 Lag',
+            fuse,
+            mccb,
+            lat,
+            lng,
+            poleId: row[26]?.trim() ? `PEA-${row[26].trim()}` : peaNo,
+            mountType: kva >= 100 ? 'นั่งร้านเสาคู่ H-Beam 12 ม.' : 'แขวนบนเสาเดี่ยว 12 ม.',
+            status,
+            note: `นำเข้าจาก CSV | พิกัด ${kva} kVA`,
+            windingTemp: Number((35 + (pct / 100) * 30).toFixed(1)),
+            oilLevel: Number((95 - (pct / 100) * 4).toFixed(1)),
+            altitude: '295 ม.'
+          });
+        }
+
+        if (newParsed.length > 0) {
+          const existingMap = new Map(transformers.map(t => [t.id, t]));
+          newParsed.forEach(t => existingMap.set(t.id, t));
+          const merged = Array.from(existingMap.values());
+          localStorage.setItem('smart_transformer_db', JSON.stringify(merged));
+          showToast(`นำเข้าสำเร็จ ${newParsed.length} เครื่อง (รวมในระบบ ${merged.length} เครื่อง)`, 'IMPORT_SUCCESS', 'success');
+          setIsImportModalOpen(false);
+          setTimeout(() => window.location.reload(), 1200);
+        } else {
+          showToast('ไม่พบรหัสหม้อแปลงที่ถูกต้อง (ต้องขึ้นต้นด้วย TR)', 'IMPORT_FAIL', 'error');
+        }
+      } catch {
+        showToast('เกิดข้อผิดพลาดในการอ่านไฟล์ CSV', 'IMPORT_ERROR', 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // Filtered Table rows
   const filteredTableRows = transformers.filter((t) => {
     const q = tableSearch.toLowerCase().trim();
@@ -408,27 +500,27 @@ export const AdminView: React.FC = () => {
     return (
       <div className="flex flex-col gap-6 w-full max-w-3xl mx-auto py-2">
         {/* Security Banner */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-[#006948] flex items-center gap-1">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-[#006948] flex items-center gap-1 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#006948] animate-pulse"></span>
                 <span>PEA AUTHORIZED ACCESS</span>
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight break-words">
               ระบบยืนยันตัวตนและเข้าใช้งานแอดมิน (Admin Portal)
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed break-words">
               ระบบจัดการการอนุมัติสิทธิ์ และแอดมินที่ได้รับอนุมัติแล้วสามารถเข้าสู่หน้าแก้ไขคำสั่งต่างๆ
             </p>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center gap-3 shrink-0 self-start sm:self-auto">
-            <Shield className="w-6 h-6 text-[#006948]" />
+          <div className="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200 flex items-center gap-2.5 sm:gap-3 shrink-0 self-start sm:self-auto">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-[#006948]" />
             <div className="text-xs">
-              <span className="text-slate-400 block font-semibold text-[10px] uppercase">SECURITY LEVEL</span>
-              <span className="font-bold text-slate-800">PEA Security Enforced</span>
+              <span className="text-slate-400 block font-semibold text-[9px] sm:text-[10px] uppercase">SECURITY LEVEL</span>
+              <span className="font-bold text-slate-800 text-xs sm:text-sm">PEA Enforced</span>
             </div>
           </div>
         </div>
@@ -452,14 +544,14 @@ export const AdminView: React.FC = () => {
               <div className="p-3 bg-white/90 rounded-lg border border-emerald-200 space-y-1.5 text-slate-700">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
                   <Key className="w-4 h-4 text-[#006948]" />
-                  <span>ข้อมูลยูสเซอร์สำหรับเข้าใช้งาน:</span>
+                  <span>ข้อมูลบัญชีสำหรับเข้าใช้งาน:</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div>รหัสเข้าใช้งาน (Username): <strong className="font-mono text-emerald-800 text-sm">{requestSuccessNotice.username}</strong></div>
                   <div>ชื่อผู้ขอสิทธิ์: <strong className="text-slate-800">{requestSuccessNotice.name}</strong></div>
                 </div>
                 <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 mt-1">
-                  🔒 <strong>ระเบียบความปลอดภัย:</strong> หน้าต่างยืนยันสิทธิ์จะย้ายไปรอการยืนยันตัวตนก่อน เมื่อได้รับการอนุมัติสิทธิ์แล้ว ท่านสามารถนำยูสเซอร์เนมนี้มากรอกในหน้าต่างด้านล่างเพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ ได้ทันที
+                  🔒 <strong>ระเบียบความปลอดภัย:</strong> หน้าต่างยืนยันสิทธิ์จะย้ายไปรอการยืนยันตัวตนก่อน เมื่อได้รับการอนุมัติสิทธิ์แล้ว ท่านสามารถนำชื่อผู้ใช้งานนี้มากรอกในหน้าต่างด้านล่างเพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ ได้ทันที
                 </div>
               </div>
               <div className="flex items-center gap-2 pt-1">
@@ -481,13 +573,13 @@ export const AdminView: React.FC = () => {
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs text-amber-950 space-y-1.5">
               <div className="font-bold text-sm text-amber-900 flex items-center justify-between">
-                <span>ยูสเซอร์เนม {unapprovedWarn.empid} อยู่ระหว่างรอการอนุมัติสิทธิ์</span>
+                <span>ชื่อผู้ใช้งาน {unapprovedWarn.empid} อยู่ระหว่างรอการอนุมัติสิทธิ์</span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-bold">
                   WAITING APPROVAL
                 </span>
               </div>
               <p className="leading-relaxed text-slate-700">
-                ยูสเซอร์เนม <strong>{unapprovedWarn.empid}</strong> ({unapprovedWarn.name}) ได้รับการบันทึกแล้ว แต่หน้าต่างยืนยันสิทธิ์จะย้ายไปรอการยืนยันตัวตนก่อน เมื่อได้รับการอนุมัติแล้ว ท่านจะสามารถใส่ยูสเซอร์เนมนี้เพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ ได้ทันที
+                ชื่อผู้ใช้งาน <strong>{unapprovedWarn.empid}</strong> ({unapprovedWarn.name}) ได้รับการบันทึกแล้ว แต่หน้าต่างยืนยันสิทธิ์จะย้ายไปรอการยืนยันตัวตนก่อน เมื่อได้รับการอนุมัติแล้ว ท่านจะสามารถใส่ชื่อผู้ใช้งานนี้เพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ ได้ทันที
               </p>
               <div className="mt-2.5 flex items-center gap-2">
                 <button
@@ -549,10 +641,10 @@ export const AdminView: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-slate-900">
-                      หน้าต่างใส่ยูสเซอร์เนมเพื่อเข้าสู่ระบบ (Sign In Window)
+                      หน้าต่างระบุชื่อผู้ใช้งานเพื่อเข้าสู่ระบบ (Sign In Window)
                     </h2>
                     <p className="text-xs text-slate-500">
-                      หลังจากสมัครยูสแล้ว ให้ใส่ยูสเซอร์เนมเพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ
+                      หลังจากลงทะเบียนแล้ว ให้ระบุชื่อผู้ใช้งานเพื่อเข้าสู่หน้าจัดการและแก้ไขข้อมูล
                     </p>
                   </div>
                 </div>
@@ -566,14 +658,14 @@ export const AdminView: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="font-bold text-slate-800 flex items-center gap-1">
                       <UserCheck className="w-3.5 h-3.5 text-slate-500" />
-                      <span>ยูสเซอร์เนม *</span>
+                      <span>ชื่อผู้ใช้งาน (Username) *</span>
                     </label>
                     <input
                       type="text"
                       required
                       value={loginId}
                       onChange={(e) => setLoginId(e.target.value)}
-                      placeholder=""
+                      placeholder="Username"
                       className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-[#006948]/30 focus:border-[#006948] focus:bg-white transition-all"
                     />
                   </div>
@@ -618,7 +710,7 @@ export const AdminView: React.FC = () => {
                       หน้ากดขอสิทธิ์เข้าถึง (Request Access Form)
                     </h2>
                     <p className="text-xs text-slate-500">
-                      กำหนดชื่อ ยูสเซอร์เนม อีเมล และรหัสผ่าน เพื่อส่งคำขออนุมัติสิทธิ์เข้าใช้งาน
+                      กำหนดชื่อ ชื่อผู้ใช้งาน อีเมล และรหัสผ่าน เพื่อส่งคำขออนุมัติสิทธิ์เข้าใช้งาน
                     </p>
                   </div>
                 </div>
@@ -645,18 +737,18 @@ export const AdminView: React.FC = () => {
 
                   <div className="space-y-1.5">
                     <label className="font-bold text-slate-800">
-                      ยูสเซอร์เนม *
+                      ชื่อผู้ใช้งาน (Username) *
                     </label>
                     <input
                       type="text"
                       required
                       value={reqEmpid}
                       onChange={(e) => setReqEmpid(e.target.value)}
-                      placeholder=""
+                      placeholder="Username"
                       className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-[#006948]/30 focus:border-[#006948] focus:bg-white"
                     />
                     <p className="text-[10px] text-slate-400">
-                      ยูสเซอร์นี้จะใช้สำหรับใส่ในหน้าต่างเข้าสู่ระบบหลังจากได้รับการอนุมัติ
+                      ชื่อผู้ใช้นี้จะใช้สำหรับเข้าสู่ระบบหลังจากได้รับการอนุมัติสิทธิ์
                     </p>
                   </div>
                 </div>
@@ -735,7 +827,7 @@ export const AdminView: React.FC = () => {
                     <span>ขั้นตอนหลังคลิกยืนยันขอใช้สิทธิ์:</span>
                   </div>
                   <p className="text-amber-800 leading-relaxed">
-                    เมื่อคลิก <strong>"ยืนยันขอใช้สิทธิ์"</strong> ข้อมูลจะถูกส่งเข้าสู่ระบบเพื่อรอการยืนยันตัวตนและอนุมัติสิทธิ์ก่อน เมื่อได้รับการอนุมัติแล้ว ท่านสามารถนำยูสเซอร์เนมมากรอกในหน้าต่างล็อกอินเพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ ได้ทันที
+                    เมื่อคลิก <strong>"ยืนยันขอใช้สิทธิ์"</strong> ข้อมูลจะถูกส่งเข้าสู่ระบบเพื่อรอการยืนยันตัวตนและอนุมัติสิทธิ์ก่อน เมื่อได้รับการอนุมัติแล้ว ท่านสามารถนำชื่อผู้ใช้งานมากรอกในหน้าต่างล็อกอินเพื่อเปลี่ยนไปหน้าแก้ไขคำสั่งต่างๆ ได้ทันที
                   </p>
                 </div>
 
@@ -758,25 +850,25 @@ export const AdminView: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 w-full">
       {/* Top Breadcrumb & Action Bar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold text-slate-500 mb-1">
             <span>หน้าหลัก</span>
             <span>/</span>
             <span>ระบบจัดการข้อมูล (แอดมิน)</span>
             <span>/</span>
-            <span className="text-[#006948]">จัดการข้อมูลหม้อแปลงและพิกัดเสา GIS</span>
+            <span className="text-[#006948] truncate">จัดการข้อมูลหม้อแปลงและพิกัดเสา GIS</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+          <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
             <span>ระบบจัดการข้อมูลและควบคุมหม้อแปลงไฟฟ้า (Admin Console)</span>
-            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#006948]">
+            <span className="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#006948] shrink-0">
               READ / WRITE ACCESS
             </span>
           </h1>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => setIsImportModalOpen(true)}
@@ -801,7 +893,7 @@ export const AdminView: React.FC = () => {
             className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#006948] text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-emerald-200 shadow-xs transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>ทดสอบซิงค์ไปหน้าบ้าน</span>
+            <span>ทดสอบซิงก์ไปหน้าแรก</span>
           </button>
 
           <button
@@ -983,14 +1075,14 @@ export const AdminView: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                      สมุดข้อมูลยูสเซอร์เนมและรหัสผ่านแอดมินทั้งหมด (Super Admin Vault)
+                      สมุดข้อมูลชื่อผู้ใช้และรหัสผ่านผู้ดูแลระบบทั้งหมด (Super Admin Vault)
                     </h3>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
                       SUPER ADMIN ONLY
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">
-                    เฉพาะ Super Admin เท่านั้นที่สามารถดูชื่อยูสเซอร์เนม (Username) และรหัสผ่าน (Password) ของแอดมินทุกคนในระบบได้
+                    เฉพาะ Super Admin เท่านั้นที่สามารถดูชื่อผู้ใช้ (Username) และรหัสผ่าน (Password) ของผู้ดูแลระบบทุกคนในระบบได้
                   </p>
                 </div>
               </div>
@@ -1014,7 +1106,7 @@ export const AdminView: React.FC = () => {
                   type="text"
                   value={vaultSearch}
                   onChange={(e) => setVaultSearch(e.target.value)}
-                  placeholder="ค้นหาชื่อ, ยูสเซอร์เนม, แผนก, หรืออีเมล..."
+                  placeholder="ค้นหาชื่อ, ชื่อผู้ใช้, แผนก, หรืออีเมล..."
                   className="w-full h-9 pl-8 pr-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#006948]"
                 />
                 <Key className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
@@ -1030,7 +1122,7 @@ export const AdminView: React.FC = () => {
                 <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-3.5">ชื่อ-นามสกุล / ตำแหน่ง</th>
-                    <th className="py-3 px-3.5">ชื่อยูสเซอร์เนม (Username)</th>
+                    <th className="py-3 px-3.5">ชื่อผู้ใช้ (Username)</th>
                     <th className="py-3 px-3.5">รหัสผ่าน (Password)</th>
                     <th className="py-3 px-3.5">อีเมล / แผนก</th>
                     <th className="py-3 px-3.5">ระดับสิทธิ์</th>
@@ -1077,7 +1169,7 @@ export const AdminView: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(acc.empid, `table-user-${acc.id}`)}
-                                title="คัดลอกชื่อยูสเซอร์เนม"
+                                title="คัดลอกชื่อผู้ใช้"
                                 className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
                               >
                                 {copiedKey === `table-user-${acc.id}` ? (
@@ -1332,13 +1424,13 @@ export const AdminView: React.FC = () => {
                           {/* Username */}
                           <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
                             <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-500 font-sans">ชื่อยูสเซอร์เนม (Username):</span>
+                              <span className="text-[10px] text-slate-500 font-sans">ชื่อผู้ใช้ (Username):</span>
                               <span className="font-mono font-bold text-[#006948] text-xs select-all">{acc.empid}</span>
                             </div>
                             <button
                               type="button"
                               onClick={() => copyToClipboard(acc.empid, `card-user-${acc.id}`)}
-                              title="คัดลอกชื่อยูส"
+                              title="คัดลอกชื่อผู้ใช้"
                               className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
                             >
                               {copiedKey === `card-user-${acc.id}` ? (
@@ -1451,7 +1543,7 @@ export const AdminView: React.FC = () => {
               </div>
               <div>
                 <div className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-                  <span>🔗 ระบบซิงค์ข้อมูลแบบเรียลไทม์ (Live Sync Bridge Active: LocalStorage &amp; BroadcastChannel)</span>
+                  <span>🔗 ระบบซิงก์ข้อมูลแบบเรียลไทม์ (Live Sync Bridge Active: LocalStorage &amp; BroadcastChannel)</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#006948] text-white font-bold">
                     SYNC BROADCAST: LIVE
                   </span>
@@ -1461,15 +1553,6 @@ export const AdminView: React.FC = () => {
                 </p>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={resetToDefaults}
-              className="text-xs text-[#006948] hover:underline font-bold shrink-0 flex items-center gap-1"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>คืนค่าเริ่มต้น 6 เครื่อง</span>
-            </button>
           </div>
 
       {/* INLINE ACTIVE TRANSFORMER EDITOR & GEO-PINNING FORM */}
@@ -1498,7 +1581,7 @@ export const AdminView: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setEditingId('TR-001')}
+              onClick={() => setEditingId(transformers[0]?.id || 'TR23-011134')}
               className="py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
             >
               คืนค่าเดิม
@@ -1509,7 +1592,7 @@ export const AdminView: React.FC = () => {
               className="py-2 px-4 rounded-xl bg-[#006948] hover:bg-[#005137] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
             >
               <Save className="w-4 h-4" />
-              <span>บันทึกและซิงค์ข้อมูล (Save &amp; Sync)</span>
+              <span>บันทึกและซิงก์ข้อมูล (Save &amp; Sync)</span>
             </button>
           </div>
         </div>
@@ -1824,7 +1907,7 @@ export const AdminView: React.FC = () => {
 
                   {/* Substation Landmark */}
                   <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] text-slate-700 border border-slate-200 shadow-xs">
-                    สถานีไฟฟ้านครราชสีมา 2 (22kV)
+                    สถานีไฟฟ้าบ้านโฮ่ง จ.ลำพูน (22kV)
                   </div>
 
                   {/* Draggable/Movable Pin */}
@@ -2011,17 +2094,18 @@ export const AdminView: React.FC = () => {
               อัปโหลดไฟล์ CSV หรือ GeoJSON มาตรฐาน กฟภ. เพื่อนำเข้าพิกัดเสาและข้อมูลหม้อแปลงอัตโนมัติ
             </p>
 
-            <div
-              onClick={() => {
-                showToast('นำเข้าชุดข้อมูลตัวอย่าง PEA_Korat_Grid_Export.csv สำเร็จ 6 เครื่อง!', 'IMPORT_SUCCESS', 'success');
-                setIsImportModalOpen(false);
-              }}
-              className="p-8 border-2 border-dashed border-slate-300 hover:border-[#006948] rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition-colors text-center"
-            >
-              <UploadCloud className="w-10 h-10 text-[#006948]" />
-              <span className="text-xs font-bold text-slate-800">คลิกเพื่อจำลองการอัปโหลดไฟล์ CSV / GIS</span>
-              <span className="text-[10px] text-slate-400">รองรับไฟล์ .csv, .geojson, .shp (สูงสุด 25MB)</span>
-            </div>
+            <label className="p-8 border-2 border-dashed border-slate-300 hover:border-[#006948] rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition-colors text-center group">
+              <UploadCloud className="w-10 h-10 text-[#006948] group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-bold text-slate-800">คลิกเลือกไฟล์ CSV หรือลากไฟล์มาวางที่นี่</span>
+              <span className="text-xs text-slate-500">รองรับไฟล์ .csv รายการหม้อแปลง กฟภ. (เช่น 853 รายการของ กฟส.บ้านโฮ่ง)</span>
+              <span className="text-[10px] text-emerald-700 font-medium bg-emerald-100/70 px-2 py-0.5 rounded-full mt-1">นำเข้าพิกัดและประมวลผลระบบอัตโนมัติ</span>
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleFileImport}
+              />
+            </label>
 
             <div className="flex justify-end gap-2 pt-2">
               <button

@@ -75,30 +75,31 @@ export const DetailView: React.FC = () => {
       </div>
 
       {/* Header & Quick Selector */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+          <nav className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs text-slate-500 font-medium">
             <span>หน้าหลัก</span>
             <span>/</span>
-            <span>ข้อมูลหม้อแปลงและแผนที่</span>
-            <span>/</span>
-            <span className="text-slate-900 font-bold bg-slate-100 px-2 py-0.5 rounded">
+            <span className="hidden xs:inline">ข้อมูลหม้อแปลงและแผนที่</span>
+            <span className="hidden xs:inline">/</span>
+            <span className="text-slate-900 font-bold bg-slate-100 px-2 py-0.5 rounded truncate max-w-[240px]">
               {tr?.id} ({tr?.kva} kVA {tr?.name})
             </span>
           </nav>
 
           {/* Quick Dropdown Switcher */}
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-xs max-w-full">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-xs w-full sm:w-auto justify-between sm:justify-start">
             <label htmlFor="trSelect" className="text-xs text-slate-600 pl-2 font-medium flex items-center gap-1 shrink-0 whitespace-nowrap">
               <Zap className="w-3.5 h-3.5 text-[#006948]" />
-              <span>เลือกหม้อแปลง:</span>
+              <span className="hidden xs:inline">เลือกหม้อแปลง:</span>
+              <span className="xs:hidden">เลือก:</span>
             </label>
             <select
               id="trSelect"
               value={tr?.id}
               onChange={(e) => setSelectedId(e.target.value)}
-              className="bg-white text-xs font-bold text-slate-800 py-1.5 px-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#006948] cursor-pointer max-w-[160px] sm:max-w-[200px] truncate"
+              className="bg-white text-xs font-bold text-slate-800 py-1.5 px-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#006948] cursor-pointer flex-1 sm:flex-initial max-w-[180px] sm:max-w-[220px] truncate"
             >
               {transformers.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -109,7 +110,7 @@ export const DetailView: React.FC = () => {
             <button
               onClick={() => triggerSync()}
               className="p-1.5 text-slate-500 hover:text-[#006948] hover:bg-white rounded-lg transition-colors shrink-0"
-              title="รีเฟรชและซิงค์ข้อมูลกับเซิร์ฟเวอร์"
+              title="รีเฟรชและซิงก์ข้อมูลกับเซิร์ฟเวอร์"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -118,17 +119,17 @@ export const DetailView: React.FC = () => {
 
         {/* Quick Summary Banner */}
         <div className="bg-slate-50 rounded-xl p-3.5 sm:p-4 border border-slate-200 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-[#006948]/10 border border-[#006948]/20 flex items-center justify-center text-[#006948] shrink-0 shadow-xs">
-              <Zap className="w-6 h-6" />
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#006948]/10 border border-[#006948]/20 flex items-center justify-center text-[#006948] shrink-0 shadow-xs">
+              <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
+                <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight break-words">
                   {tr?.name}
                 </h1>
                 <span
-                  className={`text-[11px] px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 font-mono ${
+                  className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 font-mono shrink-0 ${
                     isCrit
                       ? 'bg-red-100 text-red-700'
                       : isWarn
@@ -149,7 +150,7 @@ export const DetailView: React.FC = () => {
                 <span>•</span>
                 <span>เสา: <strong className="text-slate-800 font-mono">{tr?.poleId}</strong></span>
                 <span>•</span>
-                <span className="truncate max-w-[200px]">{tr?.area}</span>
+                <span className="truncate max-w-[180px] sm:max-w-xs">{tr?.area}</span>
               </div>
             </div>
           </div>
@@ -497,7 +498,7 @@ export const DetailView: React.FC = () => {
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 flex flex-col gap-1 text-xs">
               <span className="text-[10px] text-slate-400 font-semibold uppercase">สถานที่ติดตั้ง / โซนให้บริการ</span>
               <p className="font-bold text-slate-800 leading-relaxed">{tr?.area}</p>
-              <span className="text-slate-500 text-[11px]">การไฟฟ้าส่วนภูมิภาค เขต 3 (ภาคตะวันออกเฉียงเหนือ) นครราชสีมา</span>
+              <span className="text-slate-500 text-[11px]">การไฟฟ้าส่วนภูมิภาค สาขาอำเภอบ้านโฮ่ง จ.ลำพูน (กฟส.บ้านโฮ่ง)</span>
             </div>
 
             {/* Coordinates Matrix */}
@@ -556,18 +557,18 @@ export const DetailView: React.FC = () => {
             {/* Visual Live Google Maps Canvas Updating Automatically by Lat/Lng */}
             <div className="w-full rounded-xl overflow-hidden relative border border-slate-200 bg-slate-100 flex flex-col">
               {/* Map View Mode Controls */}
-              <div className="p-2.5 bg-white border-b border-slate-200 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
+              <div className="p-2 sm:p-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="relative flex h-2 w-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                   </span>
-                  <span className="font-bold text-slate-800 text-[11px]">แผนที่ Google Maps สดตามพิกัด</span>
-                  <span className="text-[10px] font-mono text-[#006948] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold hidden sm:inline-block">
+                  <span className="font-bold text-slate-800 text-[10px] sm:text-[11px] truncate">แผนที่ Google Maps สด</span>
+                  <span className="text-[9px] sm:text-[10px] font-mono text-[#006948] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold hidden xs:inline-block truncate">
                     {tr?.lat}, {tr?.lng}
                   </span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={() => setMapType('m')}
@@ -588,13 +589,13 @@ export const DetailView: React.FC = () => {
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    ภาพดาวเทียม
+                    ดาวเทียม
                   </button>
                 </div>
               </div>
 
               {/* Live Embedded Map centered on Lat/Lng */}
-              <div className="relative w-full h-64 sm:h-72 bg-slate-200">
+              <div className="relative w-full h-60 sm:h-72 bg-slate-200">
                 <iframe
                   title={`Google Maps ${tr?.id}`}
                   src={embedMapUrl}
@@ -604,9 +605,9 @@ export const DetailView: React.FC = () => {
                 />
 
                 {/* Floating GPS Info Overlay */}
-                <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold text-slate-800 border border-slate-200 shadow-sm pointer-events-none flex items-center gap-1.5">
+                <div className="absolute top-2 left-2 max-w-[calc(100%-16px)] bg-white/95 backdrop-blur-xs px-2 py-1 rounded-lg text-[10px] font-mono font-bold text-slate-800 border border-slate-200 shadow-sm pointer-events-none flex items-center gap-1.5 truncate">
                   <MapPin className="w-3.5 h-3.5 text-red-600 fill-current shrink-0" />
-                  <span>{tr?.id} ({kva} kVA) • {tr?.lat}, {tr?.lng}</span>
+                  <span className="truncate">{tr?.id} ({kva} kVA) • {tr?.lat}, {tr?.lng}</span>
                 </div>
               </div>
 

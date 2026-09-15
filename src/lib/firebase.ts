@@ -85,7 +85,7 @@ export async function deleteTransformerFromFirestore(id: string): Promise<void> 
 }
 
 /**
- * Batch seed transformers if the collection is empty.
+ * Batch seed transformers if the collection is empty or contains old demo data.
  */
 export async function seedInitialTransformersIfEmpty(
   initialList: Transformer[]
@@ -93,13 +93,26 @@ export async function seedInitialTransformersIfEmpty(
   try {
     const colRef = collection(db, TRANSFORMERS_COL);
     const snap = await getDocs(colRef);
-    if (snap.empty && initialList.length > 0) {
-      const batch = writeBatch(db);
-      for (const item of initialList) {
-        const ref = doc(db, TRANSFORMERS_COL, item.id);
-        batch.set(ref, item);
+    // If empty or contains fewer items than the complete Ban Hong fleet (853 items)
+    if ((snap.empty || snap.size < initialList.length) && initialList.length > 0) {
+      // If there were old demo items, delete them
+      if (!snap.empty) {
+        const delBatch = writeBatch(db);
+        snap.forEach((d) => delBatch.delete(d.ref));
+        await delBatch.commit();
       }
-      await batch.commit();
+
+      // Batch in chunks of 350 (Firestore limit is 500 per batch)
+      const chunkSize = 350;
+      for (let i = 0; i < initialList.length; i += chunkSize) {
+        const batch = writeBatch(db);
+        const slice = initialList.slice(i, i + chunkSize);
+        for (const item of slice) {
+          const ref = doc(db, TRANSFORMERS_COL, item.id);
+          batch.set(ref, item);
+        }
+        await batch.commit();
+      }
       return true;
     }
     return false;
@@ -116,15 +129,27 @@ export async function resetTransformersInFirestore(defaultList: Transformer[]): 
   try {
     const colRef = collection(db, TRANSFORMERS_COL);
     const snap = await getDocs(colRef);
-    const batch = writeBatch(db);
-    snap.forEach((docSnap) => {
-      batch.delete(docSnap.ref);
-    });
-    for (const item of defaultList) {
-      const ref = doc(db, TRANSFORMERS_COL, item.id);
-      batch.set(ref, item);
+    
+    // Delete in chunks
+    const docRefs = snap.docs.map((d) => d.ref);
+    const chunkSize = 350;
+    for (let i = 0; i < docRefs.length; i += chunkSize) {
+      const delBatch = writeBatch(db);
+      const slice = docRefs.slice(i, i + chunkSize);
+      slice.forEach((ref) => delBatch.delete(ref));
+      await delBatch.commit();
     }
-    await batch.commit();
+
+    // Insert in chunks
+    for (let i = 0; i < defaultList.length; i += chunkSize) {
+      const addBatch = writeBatch(db);
+      const slice = defaultList.slice(i, i + chunkSize);
+      for (const item of slice) {
+        const ref = doc(db, TRANSFORMERS_COL, item.id);
+        addBatch.set(ref, item);
+      }
+      await addBatch.commit();
+    }
   } catch (e) {
     console.warn('Failed to reset transformers in Firestore:', e);
   }
