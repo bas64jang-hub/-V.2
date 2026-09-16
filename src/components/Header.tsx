@@ -8,12 +8,14 @@ import {
   MapPin,
   Calculator,
   ShieldCheck,
+  Layers,
   User,
   Radio,
   Menu,
   X,
   Cloud,
   RefreshCw,
+  Compass,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,12 +27,13 @@ export const Header: React.FC<HeaderProps> = ({
   mobileMenuOpen = false,
   setMobileMenuOpen = (_open: boolean) => {},
 }) => {
-  const { activeTab, setActiveTab, userRole, triggerSync } = useTransformers();
+  const { activeTab, setActiveTab, userRole, triggerSync, openNearbyModal, isLocating } = useTransformers();
 
   const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'landing', label: 'หน้าเริ่ม', icon: <Home className="w-4 h-4" /> },
     { id: 'dashboard', label: 'ภาพรวม', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'detail', label: 'พิกัด/แผนที่', icon: <MapPin className="w-4 h-4" /> },
+    { id: 'linecutout', label: 'ฟิวส์ตัดไลน์', icon: <Layers className="w-4 h-4" /> },
     { id: 'calculator', label: 'คำนวณฟิวส์', icon: <Calculator className="w-4 h-4" /> },
     { id: 'admin', label: 'จัดการแอดมิน', icon: <ShieldCheck className="w-4 h-4" /> },
   ];
@@ -103,6 +106,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Read-only Status & Role Display (Non-clickable) */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 select-none">
+          {/* Quick Find Nearby Transformers Button */}
+          <button
+            type="button"
+            onClick={openNearbyModal}
+            className="flex items-center gap-1 sm:gap-1.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-slate-700 hover:text-[#006948] px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all shadow-xs cursor-pointer"
+            title="กดเพื่อตรวจหาพิกัดตำแหน่งของฉัน & เด้งดูหม้อแปลงใกล้เคียง"
+          >
+            <Compass className={`w-3.5 h-3.5 text-emerald-600 ${isLocating ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">หม้อแปลงใกล้ฉัน</span>
+            <span className="sm:hidden">ใกล้ฉัน</span>
+          </button>
+
           {/* Live Cloud Sync indicator & button */}
           <button
             type="button"

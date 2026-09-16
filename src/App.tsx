@@ -8,7 +8,9 @@ import { LandingView } from './components/LandingView';
 import { DashboardView } from './components/DashboardView';
 import { DetailView } from './components/DetailView';
 import { FuseCalculatorView } from './components/FuseCalculatorView';
+import { LineCutoutView } from './components/LineCutoutView';
 import { AdminView } from './components/AdminView';
+import { NearbyTransformersModal } from './components/NearbyTransformersModal';
 
 const MainContent: React.FC = () => {
   const { activeTab } = useTransformers();
@@ -24,6 +26,7 @@ const MainContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#f4f7f5] text-slate-900 font-sans">
         <Toast />
+        <NearbyTransformersModal />
         <LandingView />
       </div>
     );
@@ -32,6 +35,7 @@ const MainContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       <Toast />
+      <NearbyTransformersModal />
       <Header mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto pt-20 sm:pt-24 pb-28 md:pb-16 px-3 sm:px-5 md:px-6 flex flex-col md:flex-row gap-4 sm:gap-6">
@@ -42,6 +46,7 @@ const MainContent: React.FC = () => {
         <div className="flex-1 min-w-0 w-full flex flex-col">
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'detail' && <DetailView />}
+          {activeTab === 'linecutout' && <LineCutoutView />}
           {activeTab === 'calculator' && <FuseCalculatorView />}
           {activeTab === 'admin' && <AdminView />}
         </div>

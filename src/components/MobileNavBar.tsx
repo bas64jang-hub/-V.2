@@ -5,6 +5,7 @@ import {
   Home,
   LayoutDashboard,
   MapPin,
+  Layers,
   Calculator,
   ShieldCheck,
 } from 'lucide-react';
@@ -13,11 +14,12 @@ export const MobileNavBar: React.FC = () => {
   const { activeTab, setActiveTab } = useTransformers();
 
   const items: { id: NavTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'landing', label: 'หน้าเริ่ม', icon: <Home className="w-5 h-5" /> },
-    { id: 'dashboard', label: 'ภาพรวม', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'detail', label: 'พิกัด/แผนที่', icon: <MapPin className="w-5 h-5" /> },
-    { id: 'calculator', label: 'คำนวณฟิวส์', icon: <Calculator className="w-5 h-5" /> },
-    { id: 'admin', label: 'จัดการ', icon: <ShieldCheck className="w-5 h-5" /> },
+    { id: 'landing', label: 'หน้าเริ่ม', icon: <Home className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { id: 'dashboard', label: 'ภาพรวม', icon: <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { id: 'detail', label: 'พิกัด/แผนที่', icon: <MapPin className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { id: 'linecutout', label: 'ฟิวส์ไลน์', icon: <Layers className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { id: 'calculator', label: 'คำนวณ', icon: <Calculator className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { id: 'admin', label: 'จัดการ', icon: <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" /> },
   ];
 
   return (

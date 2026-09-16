@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useTransformers } from '../context/TransformerContext';
+import { calculateDistanceKm, formatDistance, getTravelEstimate } from '../lib/geoUtils';
 import {
   MapPin,
   Compass,
+  Navigation,
   Zap,
   ShieldCheck,
   Thermometer,
@@ -17,6 +19,8 @@ import {
   AlertTriangle,
   QrCode,
   Layers,
+  Sparkles,
+  Radio,
 } from 'lucide-react';
 
 export const DetailView: React.FC = () => {
@@ -27,6 +31,13 @@ export const DetailView: React.FC = () => {
     selectedTransformer,
     showToast,
     triggerSync,
+    lineCutouts,
+    setSelectedLineCutoutId,
+    setActiveTab,
+    userLocation,
+    isLocating,
+    locateUser,
+    openNearbyModal,
   } = useTransformers();
 
   const [mobileTab, setMobileTab] = useState<'all' | 'telemetry' | 'protection' | 'location'>('all');
@@ -53,8 +64,21 @@ export const DetailView: React.FC = () => {
   const isCrit = percent > 90 || tr?.status === 'critical';
   const isWarn = !isCrit && (percent > 80 || tr?.status === 'warning');
 
-  const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(tr?.lat || '14.9738')},${encodeURIComponent(tr?.lng || '102.0837')}`;
-  const embedMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(tr?.lat || '14.9738')},${encodeURIComponent(tr?.lng || '102.0837')}&hl=th&z=16&t=${mapType}&output=embed`;
+  const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(tr?.lat || '18.3312')},${encodeURIComponent(tr?.lng || '98.7708')}`;
+  const embedMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(tr?.lat || '18.3312')},${encodeURIComponent(tr?.lng || '98.7708')}&hl=th&z=16&t=${mapType}&output=embed`;
+
+  // Calculate user distance to this transformer
+  const userDistanceKm =
+    userLocation && tr?.lat && tr?.lng
+      ? calculateDistanceKm(userLocation.lat, userLocation.lng, parseFloat(tr.lat), parseFloat(tr.lng))
+      : null;
+  const userDistanceFormatted = userDistanceKm !== null ? formatDistance(userDistanceKm) : null;
+  const userTravelEst = userDistanceKm !== null ? getTravelEstimate(userDistanceKm) : null;
+
+  const directionsUrl =
+    userLocation && tr?.lat && tr?.lng
+      ? `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${encodeURIComponent(tr.lat)},${encodeURIComponent(tr.lng)}&travelmode=driving`
+      : mapsUrl;
 
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -71,6 +95,65 @@ export const DetailView: React.FC = () => {
             GPS RTK ONLINE
           </span>
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        </div>
+      </div>
+
+      {/* GPS Location & Nearby Transformers Action Card */}
+      <div className="w-full bg-linear-to-r from-emerald-50 via-teal-50/70 to-white p-4 sm:p-5 rounded-2xl border-2 border-emerald-500/40 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#006948] text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Compass className={`w-6 h-6 ${isLocating ? 'animate-spin' : ''}`} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                ระบบระบุตำแหน่งของฉัน &amp; ตรวจหาหม้อแปลงใกล้เคียง (GPS Radar)
+              </h2>
+              {userLocation && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#006948] border border-emerald-200">
+                  {userLocation.isSimulated ? 'พิกัดจำลอง กฟส.บ้านโฮ่ง' : 'ตรวจพบ GPS แล้ว'}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {userLocation ? (
+                <span>
+                  ตำแหน่งของคุณ: <strong className="font-mono text-slate-800">{userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}</strong>
+                  {userDistanceFormatted && (
+                    <> • ห่างจากหม้อแปลงนี้ (<strong className="font-mono text-[#006948]">{tr?.id}</strong>) ประมาณ <strong className="text-[#006948] font-bold">{userDistanceFormatted}</strong> ({userTravelEst})</>
+                  )}
+                </span>
+              ) : (
+                'กดปุ่มเพื่อให้ระบบตรวจหาตำแหน่งปัจจุบันของคุณ และเด้งแสดงหม้อแปลงไฟฟ้าที่อยู่ใกล้จุดของคุณที่สุดทันที'
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          {userLocation && (
+            <a
+              href={directionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              title="เปิด Google Maps นำทางจากจุดของคุณมายังหม้อแปลงนี้"
+            >
+              <Navigation className="w-4 h-4 text-blue-600" />
+              <span>นำทางมาที่นี่</span>
+            </a>
+          )}
+
+          <button
+            type="button"
+            onClick={openNearbyModal}
+            disabled={isLocating}
+            className="px-4 py-2.5 rounded-xl bg-[#006948] hover:bg-[#005137] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Compass className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
+            <span>{isLocating ? 'กำลังค้นหาตำแหน่ง...' : 'กดเพื่อทราบตำแหน่งของฉัน & ดูหม้อแปลงใกล้เคียง'}</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+          </button>
         </div>
       </div>
 
@@ -420,6 +503,42 @@ export const DetailView: React.FC = () => {
               </div>
             </div>
 
+            {/* Upstream Lateral Line Cutout Card */}
+            <div className="p-4 bg-amber-50/80 rounded-xl border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-amber-200 text-amber-900 border border-amber-300">
+                      {tr?.lineCutoutId || 'LC-01'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-900">
+                      ฟิวส์ตัดไลน์คุมสายสาขา (Upstream Line Cutout)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1">
+                    หม้อแปลงลูกนี้อยู่ภายใต้สายแยก{' '}
+                    <strong className="text-slate-800 font-semibold">{tr?.lineCutoutName || 'สายแยกบ้านน้ำเพอะพะ - ทางรถไฟ'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (tr?.lineCutoutId) {
+                    setSelectedLineCutoutId(tr.lineCutoutId);
+                  }
+                  setActiveTab('linecutout');
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-2xs transition-colors shrink-0 cursor-pointer self-stretch sm:self-auto justify-center"
+              >
+                <span>ดูหม้อแปลงทั้งหมดในสายนี้ &amp; คำนวณฟิวส์ตัดไลน์</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             {/* Protection Devices Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -542,17 +661,46 @@ export const DetailView: React.FC = () => {
               </div>
             </div>
 
-            {/* Google Maps Main Action */}
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3.5 px-4 bg-[#006948] hover:bg-[#005137] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-all text-center"
-            >
-              <Compass className="w-4 h-4" />
-              <span>เปิดนำทางด้วย Google Maps</span>
-              <ExternalLink className="w-4 h-4" />
-            </a>
+            {/* Proximity Callout if user location is detected */}
+            {userDistanceFormatted && (
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Navigation className="w-4 h-4 text-[#006948] shrink-0" />
+                  <div className="min-w-0 text-xs">
+                    <span className="text-slate-500 block text-[10px]">ระยะห่างจากตำแหน่งของคุณ</span>
+                    <span className="font-bold text-slate-900 truncate block">
+                      {userDistanceFormatted} <span className="font-normal text-slate-500">({userTravelEst})</span>
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#006948] shrink-0">
+                  ใกล้จุดของคุณ
+                </span>
+              </div>
+            )}
+
+            {/* Google Maps Actions Group */}
+            <div className="flex flex-col gap-2">
+              <a
+                href={directionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 bg-[#006948] hover:bg-[#005137] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-all text-center cursor-pointer"
+              >
+                <Navigation className="w-4 h-4" />
+                <span>{userLocation ? 'เปิด Google Maps นำทางจากจุดที่คุณอยู่' : 'เปิดนำทางด้วย Google Maps'}</span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+
+              <button
+                type="button"
+                onClick={openNearbyModal}
+                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all text-center cursor-pointer"
+              >
+                <Compass className="w-4 h-4 text-emerald-600" />
+                <span>กดเพื่อค้นหาหม้อแปลงใกล้จุดที่เราอยู่ (GPS Radar)</span>
+              </button>
+            </div>
 
             {/* Visual Live Google Maps Canvas Updating Automatically by Lat/Lng */}
             <div className="w-full rounded-xl overflow-hidden relative border border-slate-200 bg-slate-100 flex flex-col">

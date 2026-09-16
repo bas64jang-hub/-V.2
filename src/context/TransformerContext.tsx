@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab } from '../types';
+import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab, LineCutout, UserLocation } from '../types';
 import { DEFAULT_TRANSFORMERS, DEFAULT_ACCOUNTS, INITIAL_AUDIT_LOGS } from '../data/defaultData';
+import { DEFAULT_LINE_CUTOUTS, getLineCutoutAssignment } from '../data/lineCutoutData';
+import { DEMO_BAN_HONG_COORDS } from '../lib/geoUtils';
 import {
   fetchTransformersApi,
   saveTransformersApi,
@@ -29,10 +31,24 @@ import {
 } from '../lib/firebase';
 
 const STORAGE_KEY = 'smart_transformer_db';
+const LINECUTOUTS_STORAGE_KEY = 'pea_line_cutouts_db';
 const ACCOUNTS_STORAGE_KEY = 'pea_access_requests';
 const SESSION_USER_KEY = 'pea_admin_user';
 const SESSION_STATUS_KEY = 'pea_admin_session';
 const BROADCAST_CHANNEL_NAME = 'pea_smart_grid_sync';
+
+export function ensureLineCutoutsAssigned(list: Transformer[]): Transformer[] {
+  let changed = false;
+  const mapped = list.map((t) => {
+    if (!t.lineCutoutId || !t.lineCutoutName) {
+      changed = true;
+      const assigned = getLineCutoutAssignment(t);
+      return { ...t, lineCutoutId: assigned.id, lineCutoutName: assigned.name };
+    }
+    return t;
+  });
+  return changed ? mapped : list;
+}
 
 interface ToastState {
   show: boolean;
@@ -71,6 +87,18 @@ interface TransformerContextType {
   submitRequest: (data: Omit<AccountRecord, 'id' | 'status' | 'timeText' | 'pass' | 'otp'> & { pass?: string; otp?: string }) => void;
   addAuditLog: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   triggerSync: () => void;
+  lineCutouts: LineCutout[];
+  selectedLineCutoutId: string;
+  setSelectedLineCutoutId: (id: string) => void;
+  updateLineCutout: (id: string, updates: Partial<LineCutout>) => void;
+  reassignTransformerLineCutout: (transformerId: string, lineCutoutId: string) => void;
+  userLocation: UserLocation | null;
+  setUserLocation: (loc: UserLocation | null) => void;
+  isLocating: boolean;
+  locateUser: (options?: { simulated?: boolean; silent?: boolean }) => Promise<UserLocation | null>;
+  isNearbyModalOpen: boolean;
+  setIsNearbyModalOpen: (open: boolean) => void;
+  openNearbyModal: () => void;
   metrics: {
     total: number;
     normal: number;
@@ -94,17 +122,155 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length >= DEFAULT_TRANSFORMERS.length) {
-          return parsed;
+          return ensureLineCutoutsAssigned(parsed);
         }
       }
     } catch (e) {
       console.warn('Error reading transformers from localStorage', e);
     }
-    return DEFAULT_TRANSFORMERS;
+    return ensureLineCutoutsAssigned(DEFAULT_TRANSFORMERS);
   });
 
   const [selectedId, setSelectedId] = useState<string>(() => DEFAULT_TRANSFORMERS[0]?.id || 'TR23-011134');
   const [activeTab, setActiveTab] = useState<NavTab>('landing');
+
+  // Line Cutouts State
+  const [lineCutouts, setLineCutouts] = useState<LineCutout[]>(() => {
+    try {
+      const stored = localStorage.getItem(LINECUTOUTS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading line cutouts from localStorage', e);
+    }
+    return DEFAULT_LINE_CUTOUTS;
+  });
+
+  const [selectedLineCutoutId, setSelectedLineCutoutId] = useState<string>('LC-01');
+
+  const updateLineCutout = (id: string, updates: Partial<LineCutout>) => {
+    setLineCutouts((prev) => {
+      const updated = prev.map((lc) => (lc.id === id ? { ...lc, ...updates } : lc));
+      localStorage.setItem(LINECUTOUTS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    showToast(`อัปเดตข้อมูลฟิวส์ตัดไลน์ ${id} สำเร็จ`, 'CUTOUT_UPDATED', 'success');
+  };
+
+  const reassignTransformerLineCutout = (transformerId: string, lineCutoutId: string) => {
+    const targetCutout = lineCutouts.find((lc) => lc.id === lineCutoutId) || DEFAULT_LINE_CUTOUTS.find((lc) => lc.id === lineCutoutId);
+    const cutoutName = targetCutout ? targetCutout.name : lineCutoutId;
+
+    let updatedTransformer: Transformer | undefined;
+
+    setTransformers((prev) => {
+      const updated = prev.map((t) => {
+        if (t.id === transformerId) {
+          const mod = { ...t, lineCutoutId, lineCutoutName: cutoutName };
+          updatedTransformer = mod;
+          return mod;
+        }
+        return t;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    if (updatedTransformer) {
+      saveSingleTransformerApi(transformerId, updatedTransformer).catch(console.warn);
+      saveTransformerToFirestore(updatedTransformer).catch(console.warn);
+    }
+
+    showToast(`ย้ายหม้อแปลง ${transformerId} ไปยังฟิวส์ตัดไลน์ ${lineCutoutId} เรียบร้อย`, 'REASSIGN_OK', 'info');
+  };
+
+  // 1.5 Geolocation & Nearby Detection State
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [isNearbyModalOpen, setIsNearbyModalOpen] = useState<boolean>(false);
+
+  const locateUser = async (options?: { simulated?: boolean; silent?: boolean }): Promise<UserLocation | null> => {
+    if (options?.simulated) {
+      const sim: UserLocation = {
+        lat: DEMO_BAN_HONG_COORDS.lat,
+        lng: DEMO_BAN_HONG_COORDS.lng,
+        accuracy: 10,
+        timestamp: Date.now(),
+        isSimulated: true,
+      };
+      setUserLocation(sim);
+      if (!options?.silent) {
+        showToast('ตั้งพิกัดทดสอบในพื้นที่ กฟส.บ้านโฮ่ง เรียบร้อยแล้ว', 'GPS_SIM', 'info');
+      }
+      return sim;
+    }
+
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      showToast('เบราว์เซอร์ไม่รองรับ GPS สลับใช้พิกัดหน้างาน กฟส.บ้านโฮ่ง', 'GPS_UNSUPPORTED', 'warning');
+      const fallback: UserLocation = {
+        lat: DEMO_BAN_HONG_COORDS.lat,
+        lng: DEMO_BAN_HONG_COORDS.lng,
+        accuracy: 25,
+        timestamp: Date.now(),
+        isSimulated: true,
+      };
+      setUserLocation(fallback);
+      return fallback;
+    }
+
+    setIsLocating(true);
+    return new Promise<UserLocation | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setIsLocating(false);
+          const loc: UserLocation = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy),
+            timestamp: pos.timestamp,
+            isSimulated: false,
+          };
+          setUserLocation(loc);
+          if (!options?.silent) {
+            showToast(`ตรวจพบตำแหน่งของคุณสำเร็จ (ความแม่นยำ ±${loc.accuracy} ม.)`, 'GPS_FOUND', 'success');
+          }
+          resolve(loc);
+        },
+        (err) => {
+          setIsLocating(false);
+          console.warn('Geolocation error or permission denied:', err);
+          showToast(
+            'ไม่สามารถเข้าถึง GPS ได้ (สลับมาใช้พิกัดจุดติดตั้งหน้างาน กฟส.บ้านโฮ่ง อัตโนมัติ)',
+            'GPS_FALLBACK',
+            'info'
+          );
+          const fallback: UserLocation = {
+            lat: DEMO_BAN_HONG_COORDS.lat,
+            lng: DEMO_BAN_HONG_COORDS.lng,
+            accuracy: 20,
+            timestamp: Date.now(),
+            isSimulated: true,
+          };
+          setUserLocation(fallback);
+          resolve(fallback);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    });
+  };
+
+  const openNearbyModal = async () => {
+    setIsNearbyModalOpen(true);
+    if (!userLocation) {
+      await locateUser({ silent: false });
+    }
+  };
 
   // 2. User & Auth State
   const [userRole, setUserRole] = useState<UserRole>(() => {
@@ -230,8 +396,9 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       ]);
 
       if (trRes && Array.isArray(trRes.data) && trRes.data.length > 0) {
-        setTransformers(trRes.data);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(trRes.data));
+        const assigned = ensureLineCutoutsAssigned(trRes.data);
+        setTransformers(assigned);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(assigned));
         if (trRes.lastUpdated) {
           lastSyncTimestamp.current = Math.max(lastSyncTimestamp.current, trRes.lastUpdated);
         }
@@ -265,8 +432,9 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // 2. Real-time Firestore listener for transformers (instant push across all devices worldwide)
     const unsubTransformers = subscribeToTransformers((remoteTransformers) => {
       if (Array.isArray(remoteTransformers) && remoteTransformers.length > 0) {
-        setTransformers(remoteTransformers);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteTransformers));
+        const assigned = ensureLineCutoutsAssigned(remoteTransformers);
+        setTransformers(assigned);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(assigned));
       }
     });
 
@@ -901,6 +1069,18 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         submitRequest,
         addAuditLog,
         triggerSync,
+        lineCutouts,
+        selectedLineCutoutId,
+        setSelectedLineCutoutId,
+        updateLineCutout,
+        reassignTransformerLineCutout,
+        userLocation,
+        setUserLocation,
+        isLocating,
+        locateUser,
+        isNearbyModalOpen,
+        setIsNearbyModalOpen,
+        openNearbyModal,
         metrics,
       }}
     >

@@ -10,6 +10,7 @@ import {
   Lock,
   ChevronRight,
   ShieldCheck,
+  Layers,
   User,
   Sparkles,
   Check,
@@ -283,6 +284,33 @@ export const LandingView: React.FC = () => {
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+              {/* Gateway 2.5: Line Cutout Management & Load Sizing */}
+              <button
+                type="button"
+                onClick={() => handleNavigate('linecutout')}
+                className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/90 hover:border-amber-300 transition-all flex items-center justify-between gap-2.5 sm:gap-3 group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-200/80 border border-amber-300 flex items-center justify-center text-amber-900 group-hover:scale-105 transition-transform shrink-0">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-amber-800 transition-colors truncate">
+                        ฟิวส์ตัดไลน์สายสาขา (Line Cutout)
+                      </span>
+                      <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 border border-amber-300 shrink-0 font-bold">
+                        คำนวณรวมโหลด
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 line-clamp-1 break-words">
+                      รวมโหลดหม้อแปลงในฟิวส์ตัดไลน์ คำนวณขนาดฟิวส์ใหม่ และดูรายชื่อหม้อแปลงในสาย
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-800 group-hover:translate-x-1 transition-all shrink-0" />
               </button>
 
               {/* Gateway 3: PEA Fuse Sizing Calculator */}

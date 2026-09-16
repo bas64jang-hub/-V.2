@@ -7,6 +7,7 @@ import {
   MapPin,
   Calculator,
   ShieldCheck,
+  Layers,
   Zap,
   Activity,
   Radio,
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Flame,
+  Compass,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,7 +35,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     userRole,
     auditLogs,
     transformers,
+    lineCutouts,
     triggerSync,
+    openNearbyModal,
+    isLocating,
   } = useTransformers();
 
   const handleNav = (tab: NavTab) => {
@@ -59,6 +64,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'ข้อมูลหม้อแปลงและแผนที่',
       icon: <MapPin className="w-5 h-5" />,
       tag: 'GIS สด',
+    },
+    {
+      id: 'linecutout' as NavTab,
+      label: 'ฟิวส์ตัดไลน์ (Line Cutout)',
+      icon: <Layers className="w-5 h-5" />,
+      tag: `${lineCutouts?.length || 20} จุดสายสาขา`,
     },
     {
       id: 'calculator' as NavTab,
@@ -162,6 +173,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               );
             })}
           </nav>
+
+          {/* Quick GPS Nearby Radar Button in Sidebar */}
+          <button
+            type="button"
+            onClick={openNearbyModal}
+            className="w-full mt-2 p-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs flex items-center justify-between shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-2">
+              <Compass className={`w-4 h-4 text-emerald-200 group-hover:rotate-45 transition-transform ${isLocating ? 'animate-spin' : ''}`} />
+              <span>หาหม้อแปลงใกล้ฉัน (GPS)</span>
+            </div>
+            <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-mono uppercase">
+              Radar
+            </span>
+          </button>
         </div>
 
         {/* Live Sync Bridge Channel Card */}
