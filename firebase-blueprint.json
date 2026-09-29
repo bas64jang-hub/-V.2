@@ -56,6 +56,66 @@
         "type": { "type": "string" }
       },
       "required": ["id", "timestamp", "message", "type"]
+    },
+    "InspectionRecord": {
+      "title": "InspectionRecord",
+      "description": "PEA Distribution Transformer Inspection and Testing Record Form ข-2 มป.11-ป.68",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "docNumber": { "type": "string" },
+        "transformerId": { "type": "string" },
+        "transformerName": { "type": "string" },
+        "poleId": { "type": "string" },
+        "feeder": { "type": "string" },
+        "substationArea": { "type": "string" },
+        "brand": { "type": "string" },
+        "serialNo": { "type": "string" },
+        "ratedKva": { "type": "number" },
+        "overallResult": { "type": "string" },
+        "inspectionDate": { "type": "string" },
+        "inspectorName": { "type": "string" }
+      },
+      "required": ["id", "docNumber", "transformerId", "ratedKva", "overallResult", "inspectionDate"]
+    },
+    "LineCutoutRecord": {
+      "title": "LineCutoutRecord",
+      "description": "Lateral branch line cutout calculation and field survey record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cutoutId": { "type": "string" },
+        "cutoutName": { "type": "string" },
+        "poleId": { "type": "string" },
+        "feeder": { "type": "string" },
+        "voltage": { "type": "number" },
+        "recordedAt": { "type": "number" },
+        "recordedDate": { "type": "string" },
+        "engineerName": { "type": "string" },
+        "installedFuseBefore": { "type": "string" },
+        "recommendedFuse": { "type": "string" },
+        "statusVsInstalled": { "type": "string" },
+        "totalConnectedKva": { "type": "number" },
+        "totalLoadKva": { "type": "number" }
+      },
+      "required": ["id", "cutoutId", "cutoutName", "recordedAt", "engineerName", "recommendedFuse"]
+    },
+    "QuickFieldLog": {
+      "title": "QuickFieldLog",
+      "description": "Quick field measurements and values recorded by linemen and technicians",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "poleId": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "dateText": { "type": "string" },
+        "engineerName": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "targetType", "targetId", "timestamp", "engineerName", "status"]
     }
   },
   "firestore": {
@@ -70,6 +130,18 @@
     "/auditLogs/{logId}": {
       "schema": "AuditLog",
       "description": "System audit log items"
+    },
+    "/inspections/{inspectionId}": {
+      "schema": "InspectionRecord",
+      "description": "PEA distribution transformer inspection and testing reports Form ข-2 มป.11-ป.68"
+    },
+    "/lineCutoutRecords/{recordId}": {
+      "schema": "LineCutoutRecord",
+      "description": "Lateral branch line cutout calculation and field survey records"
+    },
+    "/quickFieldLogs/{logId}": {
+      "schema": "QuickFieldLog",
+      "description": "Quick field measurement values and logs"
     }
   }
 }

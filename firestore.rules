@@ -25,5 +25,23 @@ service cloud.firestore {
       allow create: if isValidId(logId);
       allow update, delete: if false;
     }
+
+    match /inspections/{inspectionId} {
+      allow read: if true;
+      allow create, update: if isValidId(inspectionId) && request.resource.data.id is string;
+      allow delete: if isValidId(inspectionId);
+    }
+
+    match /lineCutoutRecords/{recordId} {
+      allow read: if true;
+      allow create, update: if isValidId(recordId) && request.resource.data.id is string;
+      allow delete: if isValidId(recordId);
+    }
+
+    match /quickFieldLogs/{logId} {
+      allow read: if true;
+      allow create, update: if isValidId(logId) && request.resource.data.id is string;
+      allow delete: if isValidId(logId);
+    }
   }
 }

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab, LineCutout, UserLocation } from '../types';
+import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab, LineCutout, UserLocation, InspectionRecord, LineCutoutRecord, QuickFieldLog } from '../types';
 import { DEFAULT_TRANSFORMERS, DEFAULT_ACCOUNTS, INITIAL_AUDIT_LOGS } from '../data/defaultData';
+import { INITIAL_INSPECTIONS, DEFAULT_VISUAL_CHECKS } from '../data/defaultInspections';
+import { INITIAL_LINE_CUTOUT_RECORDS, INITIAL_QUICK_FIELD_LOGS } from '../data/defaultLineCutoutRecords';
 import { DEFAULT_LINE_CUTOUTS, getLineCutoutAssignment } from '../data/lineCutoutData';
 import { DEMO_BAN_HONG_COORDS } from '../lib/geoUtils';
 import {
@@ -15,6 +17,14 @@ import {
   fetchAuditLogsApi,
   addAuditLogApi,
   fetchSyncStatusApi,
+  fetchInspectionsApi,
+  saveInspectionApi,
+  deleteInspectionApi,
+  resetInspectionsApi,
+  saveLineCutoutRecordApi,
+  deleteLineCutoutRecordApi,
+  saveQuickFieldLogApi,
+  deleteQuickFieldLogApi,
 } from '../lib/api';
 import {
   subscribeToTransformers,
@@ -28,11 +38,26 @@ import {
   seedInitialAccountsIfEmpty,
   subscribeToAuditLogs,
   addAuditLogToFirestore,
+  subscribeToInspections,
+  saveInspectionToFirestore,
+  deleteInspectionFromFirestore,
+  seedInitialInspectionsIfEmpty,
+  subscribeToLineCutoutRecords,
+  saveLineCutoutRecordToFirestore,
+  deleteLineCutoutRecordFromFirestore,
+  seedInitialLineCutoutRecordsIfEmpty,
+  subscribeToQuickFieldLogs,
+  saveQuickFieldLogToFirestore,
+  deleteQuickFieldLogFromFirestore,
+  seedInitialQuickFieldLogsIfEmpty,
 } from '../lib/firebase';
 
 const STORAGE_KEY = 'smart_transformer_db';
 const LINECUTOUTS_STORAGE_KEY = 'pea_line_cutouts_db';
+const LINECUTOUT_RECORDS_KEY = 'pea_line_cutout_records_db';
+const QUICK_FIELD_LOGS_KEY = 'pea_quick_field_logs_db';
 const ACCOUNTS_STORAGE_KEY = 'pea_access_requests';
+const INSPECTIONS_STORAGE_KEY = 'pea_inspections_db';
 const SESSION_USER_KEY = 'pea_admin_user';
 const SESSION_STATUS_KEY = 'pea_admin_session';
 const BROADCAST_CHANNEL_NAME = 'pea_smart_grid_sync';
@@ -91,7 +116,14 @@ interface TransformerContextType {
   selectedLineCutoutId: string;
   setSelectedLineCutoutId: (id: string) => void;
   updateLineCutout: (id: string, updates: Partial<LineCutout>) => void;
+  saveLineCutout: (cutout: LineCutout) => void;
   reassignTransformerLineCutout: (transformerId: string, lineCutoutId: string) => void;
+  lineCutoutRecords: LineCutoutRecord[];
+  saveLineCutoutRecord: (record: LineCutoutRecord) => void;
+  deleteLineCutoutRecord: (id: string) => void;
+  quickFieldLogs: QuickFieldLog[];
+  saveQuickFieldLog: (log: QuickFieldLog) => void;
+  deleteQuickFieldLog: (id: string) => void;
   userLocation: UserLocation | null;
   setUserLocation: (loc: UserLocation | null) => void;
   isLocating: boolean;
@@ -99,6 +131,13 @@ interface TransformerContextType {
   isNearbyModalOpen: boolean;
   setIsNearbyModalOpen: (open: boolean) => void;
   openNearbyModal: () => void;
+  inspections: InspectionRecord[];
+  selectedInspectionId: string | null;
+  setSelectedInspectionId: (id: string | null) => void;
+  saveInspection: (record: InspectionRecord) => void;
+  deleteInspection: (id: string) => void;
+  resetInspections: () => void;
+  createInspectionForTransformer: (transformerId: string) => void;
   metrics: {
     total: number;
     normal: number;
@@ -121,7 +160,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length >= DEFAULT_TRANSFORMERS.length) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return ensureLineCutoutsAssigned(parsed);
         }
       }
@@ -148,7 +187,9 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return DEFAULT_LINE_CUTOUTS;
   });
 
-  const [selectedLineCutoutId, setSelectedLineCutoutId] = useState<string>('LC-01');
+  const [selectedLineCutoutId, setSelectedLineCutoutId] = useState<string>(
+    () => DEFAULT_LINE_CUTOUTS[0]?.id || 'BGA02VF-158'
+  );
 
   const updateLineCutout = (id: string, updates: Partial<LineCutout>) => {
     setLineCutouts((prev) => {
@@ -184,6 +225,143 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     showToast(`ย้ายหม้อแปลง ${transformerId} ไปยังฟิวส์ตัดไลน์ ${lineCutoutId} เรียบร้อย`, 'REASSIGN_OK', 'info');
+  };
+
+  const saveLineCutout = (cutout: LineCutout) => {
+    setLineCutouts((prev) => {
+      const idx = prev.findIndex((lc) => lc.id === cutout.id);
+      let updated: LineCutout[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = cutout;
+      } else {
+        updated = [cutout, ...prev];
+      }
+      localStorage.setItem(LINECUTOUTS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    showToast(`บันทึกข้อมูลฟิวส์ตัดไลน์ ${cutout.id} (${cutout.name}) เรียบร้อย`, 'CUTOUT_SAVED', 'success');
+    addAuditLog(`ปรับปรุงข้อมูลพิกัดฟิวส์ตัดไลน์ ${cutout.id} (${cutout.installedFuse})`, 'info');
+  };
+
+  // Line Cutout Calculation & Survey Records State
+  const [lineCutoutRecords, setLineCutoutRecords] = useState<LineCutoutRecord[]>(() => {
+    try {
+      const stored = localStorage.getItem(LINECUTOUT_RECORDS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading line cutout records from localStorage', e);
+    }
+    return INITIAL_LINE_CUTOUT_RECORDS;
+  });
+
+  const saveLineCutoutRecord = (record: LineCutoutRecord) => {
+    setLineCutoutRecords((prev) => {
+      const idx = prev.findIndex((r) => r.id === record.id);
+      let updated: LineCutoutRecord[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = record;
+      } else {
+        updated = [record, ...prev];
+      }
+      localStorage.setItem(LINECUTOUT_RECORDS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    saveLineCutoutRecordApi(record).catch(console.warn);
+    saveLineCutoutRecordToFirestore(record).catch(console.warn);
+
+    // If an action updated the fuse link, also sync to the line cutout
+    if (record.installedFuseAfter) {
+      updateLineCutout(record.cutoutId, {
+        installedFuse: record.installedFuseAfter,
+        fuseType: record.fuseType,
+      });
+    }
+
+    showToast(`บันทึกผลการคำนวณและสำรวจฟิวส์ตัดไลน์ ${record.cutoutId} เรียบร้อยแล้ว`, 'RECORD_SAVED', 'success');
+    addAuditLog(`บันทึกค่าการประเมินฟิวส์ตัดไลน์ ${record.cutoutId} (แนะนำ ${record.recommendedFuse}) โดย ${record.engineerName}`, 'success');
+  };
+
+  const deleteLineCutoutRecord = (id: string) => {
+    setLineCutoutRecords((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      localStorage.setItem(LINECUTOUT_RECORDS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    deleteLineCutoutRecordApi(id).catch(console.warn);
+    deleteLineCutoutRecordFromFirestore(id).catch(console.warn);
+    showToast(`ลบประวัติการบันทึก ${id} เรียบร้อยแล้ว`, 'RECORD_DELETED', 'info');
+    addAuditLog(`ลบประวัติผลคำนวณฟิวส์ตัดไลน์ ${id}`, 'info');
+  };
+
+  // Quick Field Logs State
+  const [quickFieldLogs, setQuickFieldLogs] = useState<QuickFieldLog[]>(() => {
+    try {
+      const stored = localStorage.getItem(QUICK_FIELD_LOGS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading quick field logs from localStorage', e);
+    }
+    return INITIAL_QUICK_FIELD_LOGS;
+  });
+
+  const saveQuickFieldLog = (log: QuickFieldLog) => {
+    setQuickFieldLogs((prev) => {
+      const updated = [log, ...prev.slice(0, 49)];
+      localStorage.setItem(QUICK_FIELD_LOGS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    saveQuickFieldLogApi(log).catch(console.warn);
+    saveQuickFieldLogToFirestore(log).catch(console.warn);
+
+    // If this measurement applies to a transformer, update transformer data in real time
+    if (log.targetType === 'transformer') {
+      const existing = transformers.find((t) => t.id === log.targetId);
+      if (existing) {
+        const updates: Partial<Transformer> & { id: string } = {
+          id: existing.id,
+          status: log.status,
+        };
+        if (log.currentA !== undefined) updates.currentA = log.currentA;
+        if (log.currentB !== undefined) updates.currentB = log.currentB;
+        if (log.currentC !== undefined) updates.currentC = log.currentC;
+        if (log.currentN !== undefined) updates.currentN = log.currentN;
+        if (log.loadKva !== undefined) {
+          updates.loadKva = log.loadKva;
+          updates.loadKw = +(log.loadKva * 0.9).toFixed(1);
+          if (existing.kva > 0) {
+            updates.percent = +( (log.loadKva / existing.kva) * 100 ).toFixed(1);
+          }
+        }
+        if (log.tempC !== undefined) updates.windingTemp = log.tempC;
+        if (log.oilPercent !== undefined) updates.oilLevel = log.oilPercent;
+        if (log.installedFuse) updates.fuse = log.installedFuse;
+        saveTransformer(updates);
+      }
+    } else if (log.targetType === 'linecutout' && log.installedFuse) {
+      updateLineCutout(log.targetId, { installedFuse: log.installedFuse });
+    }
+
+    showToast(`บันทึกค่าตรวจวัดหน้างานสำหรับ ${log.targetId} เรียบร้อยแล้ว`, 'FIELD_LOG_SAVED', 'success');
+    addAuditLog(`บันทึกค่าพารามิเตอร์หน้างาน ${log.targetId} (${log.targetName}) โดย ${log.engineerName}`, 'success');
+  };
+
+  const deleteQuickFieldLog = (id: string) => {
+    setQuickFieldLogs((prev) => {
+      const updated = prev.filter((l) => l.id !== id);
+      localStorage.setItem(QUICK_FIELD_LOGS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    deleteQuickFieldLogApi(id).catch(console.warn);
+    deleteQuickFieldLogFromFirestore(id).catch(console.warn);
+    showToast(`ลบรายการบันทึก ${id} เรียบร้อย`, 'LOG_DELETED', 'info');
   };
 
   // 1.5 Geolocation & Nearby Detection State
@@ -270,6 +448,183 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (!userLocation) {
       await locateUser({ silent: false });
     }
+  };
+
+  // 1.8 Inspection Records State (Form ข-2 มป.11-ป.68)
+  const [inspections, setInspections] = useState<InspectionRecord[]>(() => {
+    try {
+      const stored = localStorage.getItem(INSPECTIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading inspections from localStorage', e);
+    }
+    return INITIAL_INSPECTIONS;
+  });
+
+  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(() => {
+    return INITIAL_INSPECTIONS[0]?.id || null;
+  });
+
+  const saveInspection = (record: InspectionRecord) => {
+    setInspections((prev) => {
+      const idx = prev.findIndex((ins) => ins.id === record.id);
+      let updated: InspectionRecord[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = { ...record, updatedAt: Date.now() };
+      } else {
+        updated = [{ ...record, createdAt: record.createdAt || Date.now(), updatedAt: Date.now() }, ...prev];
+      }
+      localStorage.setItem(INSPECTIONS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    saveInspectionApi(record).catch(console.warn);
+    saveInspectionToFirestore(record).catch(console.warn);
+    setSelectedInspectionId(record.id);
+
+    showToast(
+      `บันทึกผลการตรวจสอบ มป.11-ป.68 หม้อแปลง ${record.transformerId} เรียบร้อยแล้ว`,
+      'INSPECTION_SAVED',
+      'success'
+    );
+    addAuditLog(
+      `บันทึกผลตรวจ มป.11-ป.68: ${record.transformerId} (${record.overallResult.toUpperCase()})`,
+      record.overallResult === 'pass' ? 'success' : record.overallResult === 'warning' ? 'warning' : 'error'
+    );
+  };
+
+  const deleteInspection = (id: string) => {
+    setInspections((prev) => {
+      const updated = prev.filter((ins) => ins.id !== id);
+      localStorage.setItem(INSPECTIONS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    deleteInspectionApi(id).catch(console.warn);
+    deleteInspectionFromFirestore(id).catch(console.warn);
+
+    if (selectedInspectionId === id) {
+      setSelectedInspectionId(null);
+    }
+
+    showToast(`ลบใบบันทึกผลตรวจ ${id} เรียบร้อยแล้ว`, 'INSPECTION_DELETED', 'info');
+    addAuditLog(`ลบใบบันทึกผลตรวจ มป.11-ป.68 (${id})`, 'info');
+  };
+
+  const resetInspections = () => {
+    setInspections(INITIAL_INSPECTIONS);
+    localStorage.setItem(INSPECTIONS_STORAGE_KEY, JSON.stringify(INITIAL_INSPECTIONS));
+    resetInspectionsApi().catch(console.warn);
+    seedInitialInspectionsIfEmpty(INITIAL_INSPECTIONS).catch(console.warn);
+    setSelectedInspectionId(INITIAL_INSPECTIONS[0]?.id || null);
+    showToast('รีเซ็ตข้อมูลผลการตรวจเช็ค มป.11 เป็นค่ามาตรฐานเริ่มต้นเรียบร้อย', 'INSPECTION_RESET', 'info');
+  };
+
+  const createInspectionForTransformer = (transformerId: string) => {
+    const target = transformers.find((t) => t.id === transformerId) || transformers[0];
+    const today = new Date().toISOString().split('T')[0];
+    const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    const newId = `INS-68-${Date.now().toString().slice(-5)}`;
+
+    const kvaVal = target ? target.kva : 250;
+    const priVolt = target?.voltage?.includes('33') ? 33 : 22;
+
+    const newRecord: InspectionRecord = {
+      id: newId,
+      docNumber: 'ข-2 มป.11-ป.68',
+      transformerId: target?.id || transformerId,
+      transformerName: target?.name || `หม้อแปลง ${transformerId}`,
+      poleId: target?.poleId || '1000001370',
+      feeder: target?.lineCutoutName?.includes('BGA') ? 'BGA01' : 'BGA01',
+      substationArea: target?.area || 'กฟส.บ้านโฮ่ง จ.ลำพูน',
+      brand: 'Ekarat',
+      serialNo: `SN-${transformerId}`,
+      ratedKva: kvaVal,
+      hvVoltageKv: priVolt,
+      lvVoltageV: 400,
+      phase: '3 Phase 4 Wires',
+      vectorGroup: 'Dyn11',
+      impedanceZPercent: 4.0,
+      tapPosition: '3 (0%)',
+      mfgYear: '2022',
+      inspectionDate: today,
+      inspectionTime: nowTime,
+      purpose: 'routine_pm',
+      purposeDetail: `การตรวจสอบและทดสอบบำรุงรักษาตามวาระประจำปี 2568 ณ จุดติดตั้งเสา ${target?.poleId || '-'}`,
+      visualChecks: DEFAULT_VISUAL_CHECKS,
+      insulationTest: {
+        testVoltage: '2500V',
+        hvGround1Min: 3500,
+        hvGround10Min: 7200,
+        polarizationIndex: 2.05,
+        lvGround1Min: 1800,
+        hvLv1Min: 4000,
+        ambientTempC: 32,
+        humidityPercent: 65,
+      },
+      oilTest: {
+        shot1: 45.0,
+        shot2: 48.0,
+        shot3: 46.5,
+        shot4: 47.0,
+        shot5: 49.0,
+        shot6: 48.5,
+        averageKv: 47.3,
+        oilColor: '0.5 สีเหลืองอ่อนใส',
+        appearance: 'ใสบริสุทธิ์ ไม่มีตะกอนหรือกลิ่นไหม้',
+        moisturePpm: 16,
+      },
+      groundTest: {
+        surgeArresterGroundOhm: 3.5,
+        lvNeutralGroundOhm: 2.9,
+        tankGroundOhm: 3.2,
+        groundRodCondition: 'good',
+      },
+      windingResistance: {
+        h1h2: 14.5,
+        h2h3: 14.4,
+        h3h1: 14.6,
+        x1x2: 21.0,
+        x2x3: 20.9,
+        x3x1: 21.1,
+        unbalanceHvPercent: 0.69,
+        unbalanceLvPercent: 0.95,
+      },
+      loadMeasurement: {
+        vAb: 400,
+        vBc: 401,
+        vCa: 399,
+        vAn: 231,
+        vBn: 232,
+        vCn: 230,
+        iA: Math.round(((target?.loadKva || 150) * 1000) / (Math.sqrt(3) * 400)),
+        iB: Math.round(((target?.loadKva || 150) * 1000) / (Math.sqrt(3) * 400) * 0.97),
+        iC: Math.round(((target?.loadKva || 150) * 1000) / (Math.sqrt(3) * 400) * 1.02),
+        iNeutral: 15,
+        currentUnbalancePercent: 2.8,
+        calculatedLoadKva: target?.loadKva || 150,
+        loadPercent: target?.percent || 60,
+      },
+      overallResult: 'pass',
+      summaryNotes: `การตรวจสอบและทดสอบหม้อแปลง ${target?.id || transformerId} อยู่ในเกณฑ์มาตรฐาน กฟภ. พร้อมจ่ายไฟ`,
+      actionItems: 'ตรวจเช็คแคลมป์สายดิน ทำความสะอาดลูกถ้วยภายนอก และบันทึกประวัติเข้าระบบ',
+      workOrderNo: `WO-PM68-${target?.poleId || '001'}`,
+      inspectorName: currentUser?.name || 'นายสุรชัย มั่นจิตต์',
+      inspectorPosition: currentUser?.position || 'ช่างเทคนิคสายอากาศ 5',
+      inspectorDept: currentUser?.dept || 'แผนกปฏิบัติการและบำรุงรักษา (ผบห.) กฟส.บ้านโฮ่ง',
+      approverName: 'นายสมศักดิ์ วงศ์สวรรค์',
+      approverPosition: 'วิศวกรไฟฟ้า 7 (หัวหน้าแผนกบำรุงรักษา)',
+      approvedDate: today,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    saveInspection(newRecord);
+    setActiveTab('inspection');
   };
 
   // 2. User & Auth State
@@ -389,10 +744,11 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (isSyncing.current) return;
     isSyncing.current = true;
     try {
-      const [trRes, accRes, logRes] = await Promise.all([
+      const [trRes, accRes, logRes, insRes] = await Promise.all([
         fetchTransformersApi(),
         fetchAccountsApi(),
         fetchAuditLogsApi(),
+        fetchInspectionsApi(),
       ]);
 
       if (trRes && Array.isArray(trRes.data) && trRes.data.length > 0) {
@@ -413,6 +769,11 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         setAuditLogs(logRes.data);
       }
 
+      if (insRes && Array.isArray(insRes.data) && insRes.data.length > 0) {
+        setInspections(insRes.data);
+        localStorage.setItem(INSPECTIONS_STORAGE_KEY, JSON.stringify(insRes.data));
+      }
+
       if (showNotification) {
         showToast('ซิงก์ข้อมูลกับเซิร์ฟเวอร์กลางสำเร็จ ข้อมูลตรงกันทุกอุปกรณ์', 'SERVER_SYNC_OK', 'info');
       }
@@ -428,6 +789,9 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // 1. Seed initial data if Firestore is currently empty
     seedInitialTransformersIfEmpty(DEFAULT_TRANSFORMERS);
     seedInitialAccountsIfEmpty(DEFAULT_ACCOUNTS);
+    seedInitialInspectionsIfEmpty(INITIAL_INSPECTIONS);
+    seedInitialLineCutoutRecordsIfEmpty(INITIAL_LINE_CUTOUT_RECORDS);
+    seedInitialQuickFieldLogsIfEmpty(INITIAL_QUICK_FIELD_LOGS);
 
     // 2. Real-time Firestore listener for transformers (instant push across all devices worldwide)
     const unsubTransformers = subscribeToTransformers((remoteTransformers) => {
@@ -453,10 +817,37 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     });
 
+    // 5. Real-time Firestore listener for inspections (Form ข-2 มป.11-ป.68)
+    const unsubInspections = subscribeToInspections((remoteInspections) => {
+      if (Array.isArray(remoteInspections) && remoteInspections.length > 0) {
+        setInspections(remoteInspections);
+        localStorage.setItem(INSPECTIONS_STORAGE_KEY, JSON.stringify(remoteInspections));
+      }
+    });
+
+    // 6. Real-time Firestore listener for line cutout calculation records
+    const unsubLineCutoutRecords = subscribeToLineCutoutRecords((remoteRecords) => {
+      if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
+        setLineCutoutRecords(remoteRecords);
+        localStorage.setItem(LINECUTOUT_RECORDS_KEY, JSON.stringify(remoteRecords));
+      }
+    });
+
+    // 7. Real-time Firestore listener for quick field logs
+    const unsubQuickFieldLogs = subscribeToQuickFieldLogs((remoteLogs) => {
+      if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
+        setQuickFieldLogs(remoteLogs);
+        localStorage.setItem(QUICK_FIELD_LOGS_KEY, JSON.stringify(remoteLogs));
+      }
+    });
+
     return () => {
       unsubTransformers();
       unsubAccounts();
       unsubLogs();
+      unsubInspections();
+      unsubLineCutoutRecords();
+      unsubQuickFieldLogs();
     };
   }, []);
 
@@ -1073,7 +1464,14 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         selectedLineCutoutId,
         setSelectedLineCutoutId,
         updateLineCutout,
+        saveLineCutout,
         reassignTransformerLineCutout,
+        lineCutoutRecords,
+        saveLineCutoutRecord,
+        deleteLineCutoutRecord,
+        quickFieldLogs,
+        saveQuickFieldLog,
+        deleteQuickFieldLog,
         userLocation,
         setUserLocation,
         isLocating,
@@ -1081,6 +1479,13 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         isNearbyModalOpen,
         setIsNearbyModalOpen,
         openNearbyModal,
+        inspections,
+        selectedInspectionId,
+        setSelectedInspectionId,
+        saveInspection,
+        deleteInspection,
+        resetInspections,
+        createInspectionForTransformer,
         metrics,
       }}
     >

@@ -2097,7 +2097,7 @@ export const AdminView: React.FC = () => {
             <label className="p-8 border-2 border-dashed border-slate-300 hover:border-[#006948] rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition-colors text-center group">
               <UploadCloud className="w-10 h-10 text-[#006948] group-hover:scale-110 transition-transform" />
               <span className="text-sm font-bold text-slate-800">คลิกเลือกไฟล์ CSV หรือลากไฟล์มาวางที่นี่</span>
-              <span className="text-xs text-slate-500">รองรับไฟล์ .csv รายการหม้อแปลง กฟภ. (เช่น 853 รายการของ กฟส.บ้านโฮ่ง)</span>
+              <span className="text-xs text-slate-500">รองรับไฟล์ .csv รายการหม้อแปลง กฟภ. (15 รายการของฟีดเดอร์ BGA02)</span>
               <span className="text-[10px] text-emerald-700 font-medium bg-emerald-100/70 px-2 py-0.5 rounded-full mt-1">นำเข้าพิกัดและประมวลผลระบบอัตโนมัติ</span>
               <input
                 type="file"

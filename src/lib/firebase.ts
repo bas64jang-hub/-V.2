@@ -14,7 +14,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Transformer, AccountRecord, AuditLogItem } from '../types';
+import { Transformer, AccountRecord, AuditLogItem, InspectionRecord, LineCutoutRecord, QuickFieldLog } from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
@@ -39,6 +39,9 @@ testConnection();
 const TRANSFORMERS_COL = 'transformers';
 const ACCOUNTS_COL = 'accounts';
 const AUDIT_LOGS_COL = 'auditLogs';
+const INSPECTIONS_COL = 'inspections';
+const LINE_CUTOUT_RECORDS_COL = 'lineCutoutRecords';
+const QUICK_FIELD_LOGS_COL = 'quickFieldLogs';
 
 /**
  * Real-time listener for all transformers.
@@ -243,4 +246,175 @@ export function subscribeToAuditLogs(
 export async function addAuditLogToFirestore(log: AuditLogItem): Promise<void> {
   const docRef = doc(db, AUDIT_LOGS_COL, String(log.id));
   await setDoc(docRef, log);
+}
+
+/**
+ * Real-time listener for inspections (Form ข-2 มป.11-ป.68)
+ */
+export function subscribeToInspections(
+  onUpdate: (inspections: InspectionRecord[]) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, INSPECTIONS_COL);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: InspectionRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as InspectionRecord);
+      });
+      items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('Error subscribing to inspections:', err);
+      onError?.(err);
+    }
+  );
+}
+
+export async function saveInspectionToFirestore(inspection: InspectionRecord): Promise<void> {
+  const docRef = doc(db, INSPECTIONS_COL, inspection.id);
+  await setDoc(docRef, inspection, { merge: true });
+}
+
+export async function deleteInspectionFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, INSPECTIONS_COL, id);
+  await deleteDoc(docRef);
+}
+
+export async function seedInitialInspectionsIfEmpty(
+  initialList: InspectionRecord[]
+): Promise<boolean> {
+  try {
+    const colRef = collection(db, INSPECTIONS_COL);
+    const snap = await getDocs(colRef);
+    if (snap.empty && initialList.length > 0) {
+      const batch = writeBatch(db);
+      for (const item of initialList) {
+        const ref = doc(db, INSPECTIONS_COL, item.id);
+        batch.set(ref, item);
+      }
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('Failed to seed inspections in Firestore:', e);
+    return false;
+  }
+}
+
+/**
+ * Real-time listener for Line Cutout Records
+ */
+export function subscribeToLineCutoutRecords(
+  onUpdate: (records: LineCutoutRecord[]) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, LINE_CUTOUT_RECORDS_COL);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: LineCutoutRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as LineCutoutRecord);
+      });
+      items.sort((a, b) => (b.recordedAt || 0) - (a.recordedAt || 0));
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('Error subscribing to line cutout records:', err);
+      onError?.(err);
+    }
+  );
+}
+
+export async function saveLineCutoutRecordToFirestore(record: LineCutoutRecord): Promise<void> {
+  const docRef = doc(db, LINE_CUTOUT_RECORDS_COL, record.id);
+  await setDoc(docRef, record, { merge: true });
+}
+
+export async function deleteLineCutoutRecordFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, LINE_CUTOUT_RECORDS_COL, id);
+  await deleteDoc(docRef);
+}
+
+export async function seedInitialLineCutoutRecordsIfEmpty(
+  initialList: LineCutoutRecord[]
+): Promise<boolean> {
+  try {
+    const colRef = collection(db, LINE_CUTOUT_RECORDS_COL);
+    const snap = await getDocs(colRef);
+    if (snap.empty && initialList.length > 0) {
+      const batch = writeBatch(db);
+      for (const item of initialList) {
+        const ref = doc(db, LINE_CUTOUT_RECORDS_COL, item.id);
+        batch.set(ref, item);
+      }
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('Failed to seed line cutout records in Firestore:', e);
+    return false;
+  }
+}
+
+/**
+ * Real-time listener for Quick Field Logs
+ */
+export function subscribeToQuickFieldLogs(
+  onUpdate: (logs: QuickFieldLog[]) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, QUICK_FIELD_LOGS_COL);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: QuickFieldLog[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as QuickFieldLog);
+      });
+      items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('Error subscribing to quick field logs:', err);
+      onError?.(err);
+    }
+  );
+}
+
+export async function saveQuickFieldLogToFirestore(log: QuickFieldLog): Promise<void> {
+  const docRef = doc(db, QUICK_FIELD_LOGS_COL, log.id);
+  await setDoc(docRef, log, { merge: true });
+}
+
+export async function deleteQuickFieldLogFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, QUICK_FIELD_LOGS_COL, id);
+  await deleteDoc(docRef);
+}
+
+export async function seedInitialQuickFieldLogsIfEmpty(
+  initialList: QuickFieldLog[]
+): Promise<boolean> {
+  try {
+    const colRef = collection(db, QUICK_FIELD_LOGS_COL);
+    const snap = await getDocs(colRef);
+    if (snap.empty && initialList.length > 0) {
+      const batch = writeBatch(db);
+      for (const item of initialList) {
+        const ref = doc(db, QUICK_FIELD_LOGS_COL, item.id);
+        batch.set(ref, item);
+      }
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('Failed to seed quick field logs in Firestore:', e);
+    return false;
+  }
 }

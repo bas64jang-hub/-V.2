@@ -6,12 +6,14 @@ import {
   Compass,
   Navigation,
   Zap,
+  Shield,
   ShieldCheck,
   Thermometer,
   Droplet,
   Copy,
   Share2,
   ExternalLink,
+  ChevronRight,
   ChevronDown,
   RefreshCw,
   PhoneCall,
@@ -21,6 +23,7 @@ import {
   Layers,
   Sparkles,
   Radio,
+  ClipboardCheck,
 } from 'lucide-react';
 
 export const DetailView: React.FC = () => {
@@ -38,6 +41,7 @@ export const DetailView: React.FC = () => {
     isLocating,
     locateUser,
     openNearbyModal,
+    createInspectionForTransformer,
   } = useTransformers();
 
   const [mobileTab, setMobileTab] = useState<'all' | 'telemetry' | 'protection' | 'location'>('all');
@@ -57,9 +61,10 @@ export const DetailView: React.FC = () => {
   const priVoltKv = tr?.voltage.includes('33') ? 33 : 22;
   const priFla = (kva / (Math.sqrt(3) * priVoltKv)).toFixed(2);
   const secFla = ((kva * 1000) / (Math.sqrt(3) * 400)).toFixed(2);
-  const pf = parseFloat(tr?.pf) || 0.92;
+  const rawPf = parseFloat(tr?.pf) || 0.92;
+  const pf = Math.max(0.1, Math.min(rawPf, 1.0));
   const activeKw = (loadKva * pf).toFixed(1);
-  const reactiveKvar = (loadKva * Math.sin(Math.acos(Math.min(pf, 1)))).toFixed(1);
+  const reactiveKvar = (loadKva * Math.sin(Math.acos(pf))).toFixed(1);
 
   const isCrit = percent > 90 || tr?.status === 'critical';
   const isWarn = !isCrit && (percent > 80 || tr?.status === 'warning');
@@ -87,7 +92,7 @@ export const DetailView: React.FC = () => {
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-[#006948]" />
           <p className="text-xs text-slate-700">
-            <strong className="font-semibold text-[#006948]">โหมดอ่านและตรวจสอบสถานะ (Field Telemetry Mode):</strong> ข้อมูลตรวจวัดจากระบบ SCADA อัปเดตทุก 5 วินาที
+            <strong className="font-semibold text-[#006948]">โหมดอ่านและตรวจสอบสถานะ (Field Telemetry Mode):</strong> ข้อมูลตรวจวัดจากระบบมิเตอร์ไฟฟ้าเรียลไทม์ อัปเดตทุก 5 วินาที
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -282,7 +287,7 @@ export const DetailView: React.FC = () => {
               mobileTab === 'telemetry' ? 'bg-white text-[#006948] shadow-xs' : 'text-slate-600'
             }`}
           >
-            ⚡ ไฟฟ้า SCADA
+            ⚡ ค่าไฟฟ้า (Telemetry)
           </button>
           <button
             onClick={() => setMobileTab('protection')}
@@ -307,14 +312,14 @@ export const DetailView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
         {/* LEFT COLUMN: Electrical Telemetry & Protection (7 cols) */}
         <div className={`lg:col-span-7 flex-col gap-4 sm:gap-6 ${mobileTab === 'location' ? 'hidden lg:flex' : 'flex'}`}>
-          {/* Card 1: Electrical Specs & Live SCADA */}
+          {/* Card 1: Electrical Specs & Live Telemetry */}
           {(mobileTab === 'all' || mobileTab === 'telemetry') && (
           <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-3 sm:gap-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-[#006948]" />
                 <h2 className="text-base font-bold text-slate-900">
-                  ข้อมูลค่าทางไฟฟ้าแบบเรียลไทม์ (Live SCADA Telemetry)
+                  ข้อมูลค่าทางไฟฟ้าแบบเรียลไทม์ (Live Fleet Telemetry)
                 </h2>
               </div>
               <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
@@ -503,24 +508,24 @@ export const DetailView: React.FC = () => {
               </div>
             </div>
 
-            {/* Upstream Lateral Line Cutout Card */}
-            <div className="p-4 bg-amber-50/80 rounded-xl border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-start sm:items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0">
-                  <Layers className="w-5 h-5" />
+            {/* Upstream Lateral High-Voltage Protection Device Card */}
+            <div className="p-4 sm:p-5 bg-linear-to-r from-amber-50 to-orange-50/50 rounded-2xl border-2 border-amber-300 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Shield className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-amber-200 text-amber-900 border border-amber-300">
-                      {tr?.lineCutoutId || 'LC-01'}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-extrabold text-sm px-2.5 py-0.5 rounded-lg bg-amber-200 text-amber-950 border border-amber-300">
+                      {tr?.lineCutoutId || 'BGA02VF-158'}
                     </span>
-                    <span className="text-xs font-bold text-slate-900">
-                      ฟิวส์ตัดไลน์คุมสายสาขา (Upstream Line Cutout)
+                    <span className="text-xs sm:text-sm font-bold text-slate-900">
+                      อุปกรณ์ป้องกันระบบไฟฟ้าแรงสูง (High-Voltage Cutout)
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1">
-                    หม้อแปลงลูกนี้อยู่ภายใต้สายแยก{' '}
-                    <strong className="text-slate-800 font-semibold">{tr?.lineCutoutName || 'สายแยกบ้านน้ำเพอะพะ - ทางรถไฟ'}</strong>
+                    หม้อแปลงลูกนี้ (<strong className="font-mono text-slate-800">{tr?.id}</strong>) ได้รับการป้องกันโดย{' '}
+                    <strong className="text-slate-900 font-semibold">{tr?.lineCutoutName || 'อุปกรณ์ป้องกันแรงสูง BGA02VF-158'}</strong>
                   </p>
                 </div>
               </div>
@@ -530,12 +535,12 @@ export const DetailView: React.FC = () => {
                   if (tr?.lineCutoutId) {
                     setSelectedLineCutoutId(tr.lineCutoutId);
                   }
-                  setActiveTab('linecutout');
+                  setActiveTab('dashboard');
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-2xs transition-colors shrink-0 cursor-pointer self-stretch sm:self-auto justify-center"
+                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer self-stretch sm:self-auto justify-center"
               >
-                <span>ดูหม้อแปลงทั้งหมดในสายนี้ &amp; คำนวณฟิวส์ตัดไลน์</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+                <span>ดูจุดป้องกันแรงสูงที่หน้าหลัก</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 

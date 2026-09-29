@@ -1,13 +1,13 @@
 export type OperationalStatus = 'normal' | 'warning' | 'critical' | 'maintenance' | 'offline';
 
 export interface LineCutout {
-  id: string; // e.g. "LC-01"
-  name: string; // e.g. "ฟิวส์ตัดไลน์ที่ 1 (สายแยกบ้านน้ำเพอะพะ)"
-  poleId: string; // e.g. "1000001370"
-  feeder: string; // e.g. "ฟีดเดอร์ BGA01"
+  id: string; // e.g. "BGA02VF-158"
+  name: string; // e.g. "อุปกรณ์ป้องกันแรงสูง BGA02VF-158 (สายแยกห้วยกาน)"
+  poleId: string; // e.g. "1000001430"
+  feeder: string; // e.g. "ฟีดเดอร์ BGA02"
   area: string; // e.g. "กฟส.บ้านโฮ่ง จ.ลำพูน"
   voltage: number; // 22 or 33 (kV)
-  installedFuse: string; // e.g. "40T"
+  installedFuse: string; // e.g. "25T"
   fuseType: 'T' | 'K';
   status: OperationalStatus;
   lat?: string;
@@ -16,6 +16,58 @@ export interface LineCutout {
   multiplier?: number; // e.g. 1.75
   notes?: string;
   customTargetLoadKva?: number;
+  transformerIds?: string[];
+}
+
+export interface LineCutoutRecord {
+  id: string; // e.g. "LCR-68-001"
+  cutoutId: string; // e.g. "BGA02VF-158"
+  cutoutName: string;
+  poleId: string;
+  feeder: string;
+  voltage: number;
+  recordedAt: number;
+  recordedDate: string;
+  recordedTime: string;
+  engineerName: string;
+  installedFuseBefore: string;
+  recommendedFuse: string;
+  installedFuseAfter?: string;
+  statusVsInstalled: 'undersized' | 'optimal' | 'oversized';
+  totalTransformersCount: number;
+  totalConnectedKva: number;
+  totalLoadKva: number;
+  actualLoadCurrent: number;
+  sizingCurrent: number;
+  diversityFactor: number;
+  multiplier: number;
+  fuseType: 'T' | 'K';
+  actionType: 'calculation_audit' | 'fuse_replacement' | 'routine_survey' | 'emergency_repair';
+  notes?: string;
+}
+
+export interface QuickFieldLog {
+  id: string;
+  targetType: 'transformer' | 'linecutout';
+  targetId: string;
+  targetName: string;
+  poleId: string;
+  timestamp: number;
+  dateText: string;
+  timeText: string;
+  engineerName: string;
+  currentA?: number;
+  currentB?: number;
+  currentC?: number;
+  currentN?: number;
+  voltageAvg?: number;
+  loadKva?: number;
+  loadPercent?: number;
+  tempC?: number;
+  oilPercent?: number;
+  installedFuse?: string;
+  status: OperationalStatus;
+  notes?: string;
 }
 
 export interface Transformer {
@@ -42,6 +94,30 @@ export interface Transformer {
   altitude?: string;
   lineCutoutId?: string;
   lineCutoutName?: string;
+  // Rich Electrical, Telemetry & Testing Parameters
+  phase?: number;
+  currentA?: number;
+  currentB?: number;
+  currentC?: number;
+  currentN?: number;
+  voltageAN?: number;
+  voltageBN?: number;
+  voltageCN?: number;
+  voltageAB?: number;
+  voltageBC?: number;
+  voltageCA?: number;
+  insulationHV_LV?: number;
+  insulationHV_G?: number;
+  insulationLV_G?: number;
+  oilBDV?: number;
+  groundResistance?: number;
+  manufacturer?: string;
+  serialNo?: string;
+  gisId?: string;
+  mfgYear?: string;
+  unbalancePercent?: number;
+  complianceStatus?: 'pass' | 'warning' | 'fail';
+  recommendation?: string;
 }
 
 export type UserRole = 'guest' | 'admin' | 'superadmin';
@@ -85,7 +161,164 @@ export interface PeaMatrixRow {
   note: string;
 }
 
-export type NavTab = 'landing' | 'dashboard' | 'detail' | 'linecutout' | 'calculator' | 'admin';
+export type NavTab = 'landing' | 'dashboard' | 'detail' | 'linecutout' | 'calculator' | 'admin' | 'inspection';
+
+export type InspectionStatus = 'pass' | 'warning' | 'corrective' | 'segregate';
+
+export type TransformerClassification =
+  | 'หม้อแปลงดี'
+  | 'หม้อแปลงชำรุดเล็กน้อย'
+  | 'หม้อแปลงชำรุดหนัก'
+  | 'หม้อแปลงชำรุดหนักเห็นควรจำหน่าย';
+
+export type VisualCheckStatus = 'good' | 'warning' | 'defect' | 'na';
+
+export interface VisualCheckItem {
+  id: string;
+  name: string;
+  category: string;
+  status: VisualCheckStatus;
+  remark?: string;
+}
+
+export interface VoltageRatioTapData {
+  tap: number;
+  v1Supply: number;
+  v2a: number;
+  v2b: number;
+  v2c: number;
+  measuredRatioA?: number;
+  measuredRatioB?: number;
+  measuredRatioC?: number;
+  errorPercentA?: number;
+  errorPercentB?: number;
+  errorPercentC?: number;
+  status?: 'pass' | 'fail';
+}
+
+export interface CircuitCurrentTest {
+  phaseA: number; // Amperes
+  phaseB: number;
+  phaseC: number;
+  unbalancePercent: number;
+  status: 'pass' | 'fail';
+}
+
+export interface WindingResistance {
+  h1h2?: number; // mΩ or Ω
+  h2h3?: number;
+  h3h1?: number;
+  x1x2?: number;
+  x2x3?: number;
+  x3x1?: number;
+  unbalanceHvPercent?: number;
+  unbalanceLvPercent?: number;
+}
+
+export interface InsulationResistance {
+  testVoltage: string; // '1000V' | '2500V' | '5000V'
+  hvGround1Min?: number; // MΩ
+  hvGround10Min?: number; // MΩ
+  polarizationIndex?: number; // R10min / R1min
+  lvGround1Min?: number; // MΩ
+  hvLv1Min?: number; // MΩ
+  ambientTempC?: number;
+  humidityPercent?: number;
+}
+
+export interface OilTestBdv {
+  shot1?: number; // kV
+  shot2?: number;
+  shot3?: number;
+  shot4?: number;
+  shot5?: number;
+  shot6?: number;
+  averageKv?: number;
+  oilColor?: string; // e.g. '0.5 เหลืองอ่อนใส', '1.0 เหลือง', '2.0 ส้ม', etc.
+  appearance?: string; // 'ใสไร้ตะกอน', 'มีตะกอนปนเปื้อน', 'มีกลิ่นไหม้'
+  moisturePpm?: number;
+}
+
+export interface GroundTest {
+  surgeArresterGroundOhm?: number; // ≤ 5 Ω
+  lvNeutralGroundOhm?: number; // ≤ 5 Ω
+  tankGroundOhm?: number;
+  groundRodCondition?: 'good' | 'loose' | 'corroded' | 'missing';
+}
+
+export interface LoadMeasurement {
+  vAb?: number;
+  vBc?: number;
+  vCa?: number;
+  vAn?: number;
+  vBn?: number;
+  vCn?: number;
+  iA?: number;
+  iB?: number;
+  iC?: number;
+  iNeutral?: number;
+  currentUnbalancePercent?: number;
+  calculatedLoadKva?: number;
+  loadPercent?: number;
+}
+
+export interface InspectionRecord {
+  id: string; // e.g. "INS-2025-001" or timestamp
+  docNumber: string; // Form number: "ข-2 มป.11-ป.68"
+  transformerId: string; // e.g. "TR23-011134"
+  transformerName: string;
+  poleId: string;
+  feeder: string;
+  substationArea: string; // e.g. "กฟส.บ้านโฮ่ง จ.ลำพูน"
+  brand: string;
+  serialNo: string;
+  ratedKva: number;
+  hvVoltageKv: number; // 22 or 33
+  lvVoltageV: number; // 400 or 460
+  phase: string; // '3 Phase 4 Wires' | '1 Phase 3 Wires' | '1 Phase 2 Wires'
+  vectorGroup: string; // 'Dyn11' | 'Ynd11' | 'I0'
+  impedanceZPercent?: number;
+  tapPosition: string; // e.g. '3 (0%)'
+  mfgYear?: string;
+  
+  inspectionDate: string; // YYYY-MM-DD
+  inspectionTime?: string; // HH:MM
+  purpose: 'routine_pm' | 'pre_commission' | 'post_fault' | 'segregation_repair';
+  purposeDetail?: string;
+  
+  // Test Sections
+  visualChecks: VisualCheckItem[];
+  insulationTest: InsulationResistance;
+  oilTest: OilTestBdv;
+  voltageRatioTaps?: VoltageRatioTapData[];
+  shortCircuitTest?: CircuitCurrentTest;
+  openCircuitTest?: CircuitCurrentTest;
+  groundTest: GroundTest;
+  windingResistance: WindingResistance;
+  loadMeasurement: LoadMeasurement;
+  
+  // Physical Tank Check
+  tankDamaged?: boolean;
+  tankDamageNotes?: string;
+
+  // Evaluation & Action
+  overallResult: InspectionStatus;
+  classification?: TransformerClassification;
+  summaryNotes: string;
+  actionItems: string;
+  workOrderNo?: string;
+  
+  // Signatures
+  inspectorName: string;
+  inspectorPosition: string;
+  inspectorDept: string;
+  approverName: string;
+  approverPosition: string;
+  approvedDate?: string;
+  
+  createdAt: number;
+  updatedAt: number;
+}
 
 export interface UserLocation {
   lat: number;

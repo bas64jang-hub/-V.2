@@ -16,6 +16,7 @@ import {
   Cloud,
   RefreshCw,
   Compass,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -31,9 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'landing', label: 'หน้าเริ่ม', icon: <Home className="w-4 h-4" /> },
-    { id: 'dashboard', label: 'ภาพรวม', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'detail', label: 'พิกัด/แผนที่', icon: <MapPin className="w-4 h-4" /> },
-    { id: 'linecutout', label: 'ฟิวส์ตัดไลน์', icon: <Layers className="w-4 h-4" /> },
+    { id: 'dashboard', label: 'อุปกรณ์ป้องกัน (7 จุด)', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'detail', label: 'พิกัด/แผนที่ (15 TR)', icon: <MapPin className="w-4 h-4" /> },
     { id: 'calculator', label: 'คำนวณฟิวส์', icon: <Calculator className="w-4 h-4" /> },
     { id: 'admin', label: 'จัดการแอดมิน', icon: <ShieldCheck className="w-4 h-4" /> },
   ];

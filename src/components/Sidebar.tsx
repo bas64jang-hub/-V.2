@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Flame,
   Compass,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -55,21 +56,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'dashboard' as NavTab,
-      label: 'แดชบอร์ดภาพรวม',
-      icon: <LayoutDashboard className="w-5 h-5" />,
-      tag: `${transformers.length} เครื่อง`,
+      label: 'อุปกรณ์ป้องกันระบบไฟฟ้าแรงสูง',
+      icon: <ShieldCheck className="w-5 h-5" />,
+      tag: `${lineCutouts.length} จุด BGA02`,
+    },
+    {
+      id: 'linecutout' as NavTab,
+      label: 'ฟิวส์ตัดไลน์สายสาขา',
+      icon: <Layers className="w-5 h-5" />,
+      tag: 'คำนวณ & บันทึกค่า',
+    },
+    {
+      id: 'inspection' as NavTab,
+      label: 'แบบตรวจเช็ค (มป.11-ป.68)',
+      icon: <ClipboardCheck className="w-5 h-5" />,
+      tag: 'บันทึกผลทดสอบ',
     },
     {
       id: 'detail' as NavTab,
       label: 'ข้อมูลหม้อแปลงและแผนที่',
       icon: <MapPin className="w-5 h-5" />,
-      tag: 'GIS สด',
-    },
-    {
-      id: 'linecutout' as NavTab,
-      label: 'ฟิวส์ตัดไลน์ (Line Cutout)',
-      icon: <Layers className="w-5 h-5" />,
-      tag: `${lineCutouts?.length || 20} จุดสายสาขา`,
+      tag: `${transformers.length} เครื่อง TR`,
     },
     {
       id: 'calculator' as NavTab,
@@ -122,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="bg-white p-2.5 rounded-lg flex flex-col gap-1.5 border border-slate-200/80 text-xs">
             <div className="flex items-center justify-between font-mono">
-              <span className="text-slate-500">SCADA Frequency</span>
+              <span className="text-slate-500">ความถี่ระบบ (Grid Hz)</span>
               <span className="text-[#006948] font-bold">50.01 Hz</span>
             </div>
             <div className="flex items-center justify-between">

@@ -1,7 +1,7 @@
 import { Transformer, AccountRecord, PeaMatrixRow, AuditLogItem } from '../types';
-import { IMPORTED_TRANSFORMERS } from './importedTransformers';
+import { TRANSFORMERS_15 } from './protectionDevicesData';
 
-export const DEFAULT_TRANSFORMERS: Transformer[] = IMPORTED_TRANSFORMERS;
+export const DEFAULT_TRANSFORMERS: Transformer[] = TRANSFORMERS_15;
 
 export const PEA_FUSE_MATRIX: PeaMatrixRow[] = [
   { kva: 50, fla22: 1.31, fuse22: '3T', fla33: 0.87, fuse33: '2T', sec400: 72.2, mccb: '100A', note: 'หม้อแปลงเสาเดี่ยว / ระบบทั่วไป' },

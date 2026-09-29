@@ -3,12 +3,17 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { DEFAULT_TRANSFORMERS, DEFAULT_ACCOUNTS, INITIAL_AUDIT_LOGS } from './src/data/defaultData';
-import { Transformer, AccountRecord, AuditLogItem } from './src/types';
+import { INITIAL_INSPECTIONS } from './src/data/defaultInspections';
+import { INITIAL_LINE_CUTOUT_RECORDS } from './src/data/defaultLineCutoutRecords';
+import { Transformer, AccountRecord, AuditLogItem, InspectionRecord, LineCutoutRecord, QuickFieldLog } from './src/types';
 
 interface DatabaseSchema {
   transformers: Transformer[];
   accounts: AccountRecord[];
   auditLogs: AuditLogItem[];
+  inspections: InspectionRecord[];
+  lineCutoutRecords?: LineCutoutRecord[];
+  quickFieldLogs?: QuickFieldLog[];
   lastUpdated: number;
 }
 
@@ -31,6 +36,9 @@ function readData(): DatabaseSchema {
           transformers: parsed.transformers,
           accounts: Array.isArray(parsed.accounts) && parsed.accounts.length > 0 ? parsed.accounts : DEFAULT_ACCOUNTS,
           auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : INITIAL_AUDIT_LOGS,
+          inspections: Array.isArray(parsed.inspections) && parsed.inspections.length > 0 ? parsed.inspections : INITIAL_INSPECTIONS,
+          lineCutoutRecords: Array.isArray(parsed.lineCutoutRecords) ? parsed.lineCutoutRecords : INITIAL_LINE_CUTOUT_RECORDS,
+          quickFieldLogs: Array.isArray(parsed.quickFieldLogs) ? parsed.quickFieldLogs : [],
           lastUpdated: parsed.lastUpdated || Date.now(),
         };
       }
@@ -44,6 +52,9 @@ function readData(): DatabaseSchema {
     transformers: DEFAULT_TRANSFORMERS,
     accounts: DEFAULT_ACCOUNTS,
     auditLogs: INITIAL_AUDIT_LOGS,
+    inspections: INITIAL_INSPECTIONS,
+    lineCutoutRecords: INITIAL_LINE_CUTOUT_RECORDS,
+    quickFieldLogs: [],
     lastUpdated: Date.now(),
   };
   writeData(initialData);
@@ -216,6 +227,118 @@ async function startServer() {
     current.auditLogs = [newLog, ...current.auditLogs.slice(0, 49)];
     writeData(current);
     res.json({ success: true, data: current.auditLogs, lastUpdated: current.lastUpdated });
+  });
+
+  // 5. Inspections Endpoints (Form ข-2 มป.11-ป.68)
+  app.get('/api/inspections', (req, res) => {
+    const data = readData();
+    res.json({ data: data.inspections || [], lastUpdated: data.lastUpdated });
+  });
+
+  app.post('/api/inspections', (req, res) => {
+    const record = req.body as InspectionRecord;
+    if (!record || !record.id) {
+      return res.status(400).json({ error: 'Invalid inspection record data' });
+    }
+    const current = readData();
+    if (!current.inspections) current.inspections = [];
+    const idx = current.inspections.findIndex(ins => ins.id === record.id);
+    if (idx >= 0) {
+      current.inspections[idx] = { ...current.inspections[idx], ...record, updatedAt: Date.now() };
+    } else {
+      current.inspections.unshift({ ...record, createdAt: record.createdAt || Date.now(), updatedAt: Date.now() });
+    }
+    writeData(current);
+    res.json({ success: true, data: current.inspections, lastUpdated: current.lastUpdated });
+  });
+
+  app.put('/api/inspections/:id', (req, res) => {
+    const { id } = req.params;
+    const updates = req.body as Partial<InspectionRecord>;
+    const current = readData();
+    if (!current.inspections) current.inspections = [];
+    const idx = current.inspections.findIndex(ins => ins.id === id);
+    if (idx >= 0) {
+      current.inspections[idx] = { ...current.inspections[idx], ...updates, updatedAt: Date.now() };
+      writeData(current);
+      return res.json({ success: true, data: current.inspections[idx], lastUpdated: current.lastUpdated });
+    }
+    res.status(404).json({ error: 'Inspection record not found' });
+  });
+
+  app.delete('/api/inspections/:id', (req, res) => {
+    const { id } = req.params;
+    const current = readData();
+    if (!current.inspections) current.inspections = [];
+    current.inspections = current.inspections.filter(ins => ins.id !== id);
+    writeData(current);
+    res.json({ success: true, data: current.inspections, lastUpdated: current.lastUpdated });
+  });
+
+  app.post('/api/inspections/reset', (req, res) => {
+    const current = readData();
+    current.inspections = INITIAL_INSPECTIONS;
+    writeData(current);
+    res.json({ success: true, data: current.inspections, lastUpdated: current.lastUpdated });
+  });
+
+  // 6. Line Cutout Records Endpoints
+  app.get('/api/line-cutout-records', (req, res) => {
+    const data = readData();
+    res.json({ data: data.lineCutoutRecords || [], lastUpdated: data.lastUpdated });
+  });
+
+  app.post('/api/line-cutout-records', (req, res) => {
+    const record = req.body as LineCutoutRecord;
+    if (!record || !record.id) {
+      return res.status(400).json({ error: 'Invalid line cutout record' });
+    }
+    const current = readData();
+    if (!current.lineCutoutRecords) current.lineCutoutRecords = [];
+    const idx = current.lineCutoutRecords.findIndex(r => r.id === record.id);
+    if (idx >= 0) {
+      current.lineCutoutRecords[idx] = { ...current.lineCutoutRecords[idx], ...record };
+    } else {
+      current.lineCutoutRecords.unshift(record);
+    }
+    writeData(current);
+    res.json({ success: true, data: current.lineCutoutRecords, lastUpdated: current.lastUpdated });
+  });
+
+  app.delete('/api/line-cutout-records/:id', (req, res) => {
+    const { id } = req.params;
+    const current = readData();
+    if (!current.lineCutoutRecords) current.lineCutoutRecords = [];
+    current.lineCutoutRecords = current.lineCutoutRecords.filter(r => r.id !== id);
+    writeData(current);
+    res.json({ success: true, data: current.lineCutoutRecords, lastUpdated: current.lastUpdated });
+  });
+
+  // 7. Quick Field Logs Endpoints
+  app.get('/api/quick-field-logs', (req, res) => {
+    const data = readData();
+    res.json({ data: data.quickFieldLogs || [], lastUpdated: data.lastUpdated });
+  });
+
+  app.post('/api/quick-field-logs', (req, res) => {
+    const log = req.body as QuickFieldLog;
+    if (!log || !log.id) {
+      return res.status(400).json({ error: 'Invalid quick field log' });
+    }
+    const current = readData();
+    if (!current.quickFieldLogs) current.quickFieldLogs = [];
+    current.quickFieldLogs = [log, ...current.quickFieldLogs.slice(0, 49)];
+    writeData(current);
+    res.json({ success: true, data: current.quickFieldLogs, lastUpdated: current.lastUpdated });
+  });
+
+  app.delete('/api/quick-field-logs/:id', (req, res) => {
+    const { id } = req.params;
+    const current = readData();
+    if (!current.quickFieldLogs) current.quickFieldLogs = [];
+    current.quickFieldLogs = current.quickFieldLogs.filter(l => l.id !== id);
+    writeData(current);
+    res.json({ success: true, data: current.quickFieldLogs, lastUpdated: current.lastUpdated });
   });
 
   // Vite middleware for development vs static build in production

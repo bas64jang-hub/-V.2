@@ -236,9 +236,9 @@ export const NearbyTransformersModal: React.FC = () => {
                   </span>
                 </div>
                 <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
-                  <span className="text-[10px] text-slate-400 block">ฟิวส์ตัดไลน์สายสาขา</span>
-                  <span className="font-semibold text-amber-800 truncate block">
-                    {closest.lineCutoutId || 'LC-01'}
+                  <span className="text-[11px] text-slate-500 block font-medium">อุปกรณ์ป้องกันแรงสูง</span>
+                  <span className="font-semibold text-amber-800 truncate block font-mono">
+                    {closest.lineCutoutId || 'BGA02VF-158'}
                   </span>
                 </div>
               </div>

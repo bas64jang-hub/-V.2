@@ -1,6 +1,6 @@
 {
   "name": "Smart Transformer Load & Protection Management System",
-  "description": "ระบบบริหารจัดการหม้อแปลงไฟฟ้าอัจฉริยะ ตรวจจับตำแหน่ง GPS ค้นหาหม้อแปลงที่อยู่ใกล้ตัว ตรวจสอบโหลดเรียลไทม์ และคำนวณฟิวส์ตัดไลน์สายสาขา (Line Cutout) ตามมาตรฐาน กฟภ.",
+  "description": "ระบบบริหารจัดการหม้อแปลงไฟฟ้าอัจฉริยะ ตรวจจับตำแหน่ง GPS ค้นหาหม้อแปลงใกล้ตัว บันทึกผลการตรวจสอบและทดสอบหม้อแปลงระบบจำหน่าย (แบบฟอร์ม ข-2 มป.11-ป.68) และคำนวณฟิวส์ตัดไลน์ตามมาตรฐาน กฟภ.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,9 +1,10 @@
-import { Transformer, AccountRecord, AuditLogItem } from '../types';
+import { Transformer, AccountRecord, AuditLogItem, InspectionRecord } from '../types';
 
 export interface SyncStatus {
   lastUpdated: number;
   count: number;
   accountsCount: number;
+  inspectionsCount?: number;
 }
 
 export async function fetchTransformersApi(): Promise<{ data: Transformer[]; lastUpdated: number } | null> {
@@ -160,5 +161,143 @@ export async function fetchSyncStatusApi(): Promise<SyncStatus | null> {
     return await res.json();
   } catch {
     return null;
+  }
+}
+
+export async function fetchInspectionsApi(): Promise<{ data: InspectionRecord[]; lastUpdated: number } | null> {
+  try {
+    const res = await fetch('/api/inspections', { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch inspections from server API:', err);
+    return null;
+  }
+}
+
+export async function saveInspectionApi(record: InspectionRecord): Promise<boolean> {
+  try {
+    const res = await fetch('/api/inspections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save inspection to server API:', err);
+    return false;
+  }
+}
+
+export async function deleteInspectionApi(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/inspections/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to delete inspection from server API:', err);
+    return false;
+  }
+}
+
+export async function resetInspectionsApi(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/inspections/reset', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to reset inspections on server API:', err);
+    return false;
+  }
+}
+
+// Line Cutout Records API
+export async function fetchLineCutoutRecordsApi(): Promise<{ data: any[]; lastUpdated?: number }> {
+  try {
+    const res = await fetch('/api/line-cutout-records', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch line cutout records from server API:', err);
+    return { data: [] };
+  }
+}
+
+export async function saveLineCutoutRecordApi(record: any): Promise<boolean> {
+  try {
+    const res = await fetch('/api/line-cutout-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save line cutout record to server API:', err);
+    return false;
+  }
+}
+
+export async function deleteLineCutoutRecordApi(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/line-cutout-records/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to delete line cutout record from server API:', err);
+    return false;
+  }
+}
+
+// Quick Field Logs API
+export async function fetchQuickFieldLogsApi(): Promise<{ data: any[]; lastUpdated?: number }> {
+  try {
+    const res = await fetch('/api/quick-field-logs', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch quick field logs from server API:', err);
+    return { data: [] };
+  }
+}
+
+export async function saveQuickFieldLogApi(log: any): Promise<boolean> {
+  try {
+    const res = await fetch('/api/quick-field-logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(log),
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save quick field log to server API:', err);
+    return false;
+  }
+}
+
+export async function deleteQuickFieldLogApi(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/quick-field-logs/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to delete quick field log from server API:', err);
+    return false;
   }
 }

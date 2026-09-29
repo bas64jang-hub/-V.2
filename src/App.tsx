@@ -8,8 +8,9 @@ import { LandingView } from './components/LandingView';
 import { DashboardView } from './components/DashboardView';
 import { DetailView } from './components/DetailView';
 import { FuseCalculatorView } from './components/FuseCalculatorView';
-import { LineCutoutView } from './components/LineCutoutView';
 import { AdminView } from './components/AdminView';
+import { LineCutoutView } from './components/LineCutoutView';
+import { InspectionModuleView } from './components/InspectionModuleView';
 import { NearbyTransformersModal } from './components/NearbyTransformersModal';
 
 const MainContent: React.FC = () => {
@@ -32,23 +33,30 @@ const MainContent: React.FC = () => {
     );
   }
 
+  const renderActiveView = () => (
+    <>
+      {activeTab === 'dashboard' && <DashboardView />}
+      {activeTab === 'linecutout' && <LineCutoutView />}
+      {activeTab === 'inspection' && <InspectionModuleView />}
+      {activeTab === 'detail' && <DetailView />}
+      {activeTab === 'calculator' && <FuseCalculatorView />}
+      {activeTab === 'admin' && <AdminView />}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       <Toast />
       <NearbyTransformersModal />
       <Header mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto pt-20 sm:pt-24 pb-28 md:pb-16 px-3 sm:px-5 md:px-6 flex flex-col md:flex-row gap-4 sm:gap-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto pt-16 sm:pt-20 pb-28 md:pb-16 px-3 sm:px-5 md:px-6 flex flex-col md:flex-row gap-4 sm:gap-6">
         {/* Navigation Sidebar */}
         <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
         {/* Dynamic View Display */}
         <div className="flex-1 min-w-0 w-full flex flex-col">
-          {activeTab === 'dashboard' && <DashboardView />}
-          {activeTab === 'detail' && <DetailView />}
-          {activeTab === 'linecutout' && <LineCutoutView />}
-          {activeTab === 'calculator' && <FuseCalculatorView />}
-          {activeTab === 'admin' && <AdminView />}
+          {renderActiveView()}
         </div>
       </main>
 
@@ -61,13 +69,13 @@ const MainContent: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#006948]"></span>
             <span>
-              ระบบติดตามหม้อแปลงอัจฉริยะและคำนวณการป้องกัน กฟภ. (Smart Transformer SCADA System)
+              ระบบติดตามหม้อแปลงอัจฉริยะและคำนวณการป้องกัน กฟภ. (Smart Transformer System)
             </span>
           </div>
           <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400">
             <span>PEA-GRID v4.2.0</span>
             <span>•</span>
-            <span>SCADA REALTIME ENFORCED</span>
+            <span>REALTIME FLEET READY</span>
             <span>•</span>
             <span>© 2024 การไฟฟ้าส่วนภูมิภาค</span>
           </div>

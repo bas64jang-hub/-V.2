@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTransformers } from '../context/TransformerContext';
 import { NavTab } from '../types';
+import { QuickFieldLogModal } from './QuickFieldLogModal';
 import {
   Zap,
   Play,
@@ -15,14 +16,59 @@ import {
   Sparkles,
   Check,
   GraduationCap,
+  ClipboardCheck,
+  Plus,
+  Activity,
+  Clock,
+  History,
 } from 'lucide-react';
 
 export const LandingView: React.FC = () => {
-  const { setActiveTab, transformers, userRole } = useTransformers();
+  const {
+    setActiveTab,
+    transformers,
+    lineCutouts,
+    userRole,
+    quickFieldLogs,
+    lineCutoutRecords,
+  } = useTransformers();
+
+  // Quick Value Logger Modal State
+  const [isLoggerOpen, setIsLoggerOpen] = useState(false);
+  const [loggerTargetType, setLoggerTargetType] = useState<'transformer' | 'linecutout'>('transformer');
 
   const handleNavigate = (tab: NavTab) => {
     setActiveTab(tab);
   };
+
+  const handleOpenLogger = (type: 'transformer' | 'linecutout' = 'transformer') => {
+    setLoggerTargetType(type);
+    setIsLoggerOpen(true);
+  };
+
+  // Recent saved records preview (top 3)
+  const recentRecords = useMemo(() => {
+    const list: { id: string; targetId: string; targetName: string; dateText: string; tag: string }[] = [];
+    (quickFieldLogs || []).slice(0, 2).forEach((l) => {
+      list.push({
+        id: l.id,
+        targetId: l.targetId,
+        targetName: l.targetName,
+        dateText: l.dateText || 'วันนี้',
+        tag: l.loadKva ? `${l.loadKva} kVA` : 'ตรวจวัด',
+      });
+    });
+    (lineCutoutRecords || []).slice(0, 1).forEach((r) => {
+      list.push({
+        id: r.id,
+        targetId: r.cutoutId,
+        targetName: r.cutoutName,
+        dateText: r.recordedDate || 'ล่าสุด',
+        tag: `ฟิวส์ ${r.recommendedFuse}`,
+      });
+    });
+    return list;
+  }, [quickFieldLogs, lineCutoutRecords]);
 
   return (
     <div className="min-h-screen text-slate-800 flex flex-col justify-between font-sans relative overflow-hidden select-none bg-emerald-50/20">
@@ -190,6 +236,15 @@ export const LandingView: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => handleOpenLogger('transformer')}
+                className="w-full sm:w-auto px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 border border-amber-400 transition-all cursor-pointer min-h-[44px]"
+              >
+                <ClipboardCheck className="w-4 h-4 text-slate-950 shrink-0" />
+                <span>บันทึกค่าด่วนหน้างาน (+ Quick Log)</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleNavigate('calculator')}
                 className="w-full sm:w-auto px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl bg-white/90 hover:bg-white text-slate-800 border border-slate-300 font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs backdrop-blur-sm transition-all cursor-pointer min-h-[44px]"
               >
@@ -213,13 +268,13 @@ export const LandingView: React.FC = () => {
                 <span className="text-xl sm:text-2xl font-mono font-bold text-[#006948] mt-0.5">
                   Synced
                 </span>
-                <span className="text-[10px] text-slate-600 mt-0.5">SCADA Live State</span>
+                <span className="text-[10px] text-slate-600 mt-0.5">SCADA &amp; Firestore Live</span>
               </div>
             </div>
           </div>
 
           {/* RIGHT COLUMN: Gateways Box (Soft Frosted Glass) */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-5 flex flex-col gap-4">
             <div className="bg-white/90 border border-emerald-200/80 rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-md flex flex-col gap-3 sm:gap-4 relative">
               {/* Header inside gateways */}
               <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2.5 sm:pb-3 border-b border-slate-200">
@@ -229,7 +284,17 @@ export const LandingView: React.FC = () => {
                     เลือกโมดูลที่ต้องการใช้งาน (SYSTEM GATEWAYS)
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-slate-500">Single Central DB</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenLogger('transformer')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#006948] hover:bg-[#00573c] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>บันทึกค่าด่วน</span>
+                  </button>
+                  <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">Single Central DB</span>
+                </div>
               </div>
 
               {/* Gateway 1: Public Overview Dashboard */}
@@ -287,13 +352,12 @@ export const LandingView: React.FC = () => {
               </button>
 
               {/* Gateway 2.5: Line Cutout Management & Load Sizing */}
-              <button
-                type="button"
+              <div
                 onClick={() => handleNavigate('linecutout')}
-                className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/90 hover:border-amber-300 transition-all flex items-center justify-between gap-2.5 sm:gap-3 group cursor-pointer shadow-2xs"
+                className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-amber-50/80 hover:bg-amber-100/90 border border-amber-300 hover:border-amber-400 transition-all flex items-center justify-between gap-2.5 sm:gap-3 group cursor-pointer shadow-xs"
               >
                 <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-200/80 border border-amber-300 flex items-center justify-center text-amber-900 group-hover:scale-105 transition-transform shrink-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-200 border border-amber-300 flex items-center justify-center text-amber-900 group-hover:scale-105 transition-transform shrink-0">
                     <Layers className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -302,7 +366,7 @@ export const LandingView: React.FC = () => {
                         ฟิวส์ตัดไลน์สายสาขา (Line Cutout)
                       </span>
                       <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 border border-amber-300 shrink-0 font-bold">
-                        คำนวณรวมโหลด
+                        คำนวณ &amp; บันทึกค่า
                       </span>
                     </div>
                     <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 line-clamp-1 break-words">
@@ -310,7 +374,47 @@ export const LandingView: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-800 group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenLogger('linecutout');
+                    }}
+                    className="p-1 px-2 rounded-md bg-amber-200/90 hover:bg-amber-300 text-amber-950 font-bold text-[10px] border border-amber-300/80 transition-colors cursor-pointer"
+                    title="บันทึกค่าฟิวส์ตัดไลน์ทันที"
+                  >
+                    + บันทึกค่า
+                  </button>
+                  <ChevronRight className="w-4 h-4 text-amber-700 group-hover:translate-x-1 transition-all" />
+                </div>
+              </div>
+
+              {/* Gateway 2.8: Inspection & Testing Module (Form ข-2 มป.11-ป.68) */}
+              <button
+                type="button"
+                onClick={() => handleNavigate('inspection')}
+                className="w-full text-left p-3 sm:p-3.5 rounded-xl bg-slate-50/90 hover:bg-emerald-50/90 border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between gap-2.5 sm:gap-3 group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 group-hover:scale-105 transition-transform shrink-0">
+                    <ClipboardCheck className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#006948] transition-colors truncate">
+                        แบบบันทึกผลการตรวจสอบ (มป.11-ป.68)
+                      </span>
+                      <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0 font-bold">
+                        บันทึกค่าหน้างาน
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 line-clamp-1 break-words">
+                      แบบฟอร์ม มป.11 ข-2 บันทึกผลทดสอบ Insulation, Oil BDV, Winding Resistance และค่าตรวจเช็ค
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#006948] group-hover:translate-x-1 transition-all shrink-0" />
               </button>
 
               {/* Gateway 3: PEA Fuse Sizing Calculator */}
@@ -376,9 +480,57 @@ export const LandingView: React.FC = () => {
                 <span className="font-mono text-[#006948] font-semibold">Ready</span>
               </div>
             </div>
+
+            {/* Recent Saved Records Preview Card */}
+            {recentRecords.length > 0 && (
+              <div className="bg-white/90 border border-emerald-200/80 rounded-2xl p-4 shadow-md backdrop-blur-md space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-emerald-600" />
+                    <span>ข้อมูลที่บันทึกล่าสุด (Recent Saved Records)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenLogger('transformer')}
+                    className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
+                  >
+                    + บันทึกค่าใหม่
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  {recentRecords.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/70 transition-colors flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-emerald-800 text-[11px] px-1.5 py-0.2 rounded bg-emerald-100 border border-emerald-200 shrink-0">
+                          {item.targetId}
+                        </span>
+                        <span className="text-slate-700 truncate text-[11px]">{item.targetName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">{item.dateText}</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 font-mono">
+                          {item.tag}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
+
+      {/* Quick Field Log Modal for saving values */}
+      <QuickFieldLogModal
+        isOpen={isLoggerOpen}
+        onClose={() => setIsLoggerOpen(false)}
+        initialTargetType={loggerTargetType}
+      />
     </div>
   );
 };
