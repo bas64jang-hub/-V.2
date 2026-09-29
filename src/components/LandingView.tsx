@@ -253,22 +253,30 @@ export const LandingView: React.FC = () => {
               </button>
             </div>
 
-            {/* Metric KPI Cards (Bottom Left) - Soft Crisp Cards */}
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-1 sm:pt-2 w-full sm:max-w-sm">
-              <div className="bg-white/90 border border-emerald-100 p-3 sm:p-3.5 rounded-xl flex flex-col shadow-xs backdrop-blur-md">
-                <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">ACTIVE FLEET</span>
-                <span className="text-xl sm:text-2xl font-mono font-bold text-[#006948] mt-0.5">
-                  {transformers.length} เครื่อง
+            {/* Metric KPI Cards (Bottom Left) - Symmetrical Crisp 3-Card Grid */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1 sm:pt-2 w-full max-w-lg">
+              <div className="bg-white/90 border border-emerald-100 p-3 sm:p-3.5 rounded-xl flex flex-col shadow-xs backdrop-blur-md text-center sm:text-left">
+                <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold truncate">ACTIVE FLEET</span>
+                <span className="text-lg sm:text-2xl font-mono font-bold text-[#006948] mt-0.5">
+                  15 เครื่อง
                 </span>
-                <span className="text-[10px] text-slate-600 mt-0.5">100% เชื่อมต่อปกติ</span>
+                <span className="text-[10px] text-slate-600 mt-0.5 truncate">กฟส.บ้านโฮ่ง</span>
               </div>
 
-              <div className="bg-white/90 border border-emerald-100 p-3 sm:p-3.5 rounded-xl flex flex-col shadow-xs backdrop-blur-md">
-                <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">DATABASE</span>
-                <span className="text-xl sm:text-2xl font-mono font-bold text-[#006948] mt-0.5">
+              <div className="bg-white/90 border border-amber-200 p-3 sm:p-3.5 rounded-xl flex flex-col shadow-xs backdrop-blur-md text-center sm:text-left">
+                <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold truncate">PROTECTION</span>
+                <span className="text-lg sm:text-2xl font-mono font-bold text-amber-700 mt-0.5">
+                  7 จุดฟิวส์
+                </span>
+                <span className="text-[10px] text-slate-600 mt-0.5 truncate">ฟีดเดอร์ BGA02</span>
+              </div>
+
+              <div className="bg-white/90 border border-emerald-100 p-3 sm:p-3.5 rounded-xl flex flex-col shadow-xs backdrop-blur-md text-center sm:text-left">
+                <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold truncate">DATABASE</span>
+                <span className="text-lg sm:text-2xl font-mono font-bold text-[#006948] mt-0.5">
                   Synced
                 </span>
-                <span className="text-[10px] text-slate-600 mt-0.5">SCADA &amp; Firestore Live</span>
+                <span className="text-[10px] text-slate-600 mt-0.5 truncate">SCADA &amp; Cloud</span>
               </div>
             </div>
           </div>

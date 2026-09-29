@@ -85,9 +85,9 @@ export const INITIAL_QUICK_FIELD_LOGS: QuickFieldLog[] = [
   {
     id: 'QFL-68-001',
     targetType: 'transformer',
-    targetId: 'TR23-011134',
-    targetName: 'หม้อแปลงจำหน่าย 250 kVA (บ้านโฮ่งหลวง ม.2)',
-    poleId: '1000001370',
+    targetId: 'TR41-001773',
+    targetName: 'DCC_xx บ้านห้วยกาน ซอย 2 (100 kVA)',
+    poleId: '1000001431',
     timestamp: Date.now() - 3600000 * 3,
     dateText: '2025-05-14',
     timeText: '09:45',

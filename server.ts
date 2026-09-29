@@ -32,8 +32,11 @@ function readData(): DatabaseSchema {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.transformers) && parsed.transformers.length > 0) {
+        const validIds = new Set(DEFAULT_TRANSFORMERS.map(t => t.id));
+        const filteredTransformers = parsed.transformers.filter((t: Transformer) => validIds.has(t.id));
+        const finalTransformers = filteredTransformers.length === DEFAULT_TRANSFORMERS.length ? filteredTransformers : DEFAULT_TRANSFORMERS;
         return {
-          transformers: parsed.transformers,
+          transformers: finalTransformers,
           accounts: Array.isArray(parsed.accounts) && parsed.accounts.length > 0 ? parsed.accounts : DEFAULT_ACCOUNTS,
           auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : INITIAL_AUDIT_LOGS,
           inspections: Array.isArray(parsed.inspections) && parsed.inspections.length > 0 ? parsed.inspections : INITIAL_INSPECTIONS,

@@ -88,25 +88,25 @@ export const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
   {
     id: '1',
     timestamp: 'เมื่อสักครู่',
-    message: 'TR23-011134: บันทึกและปรับพิกัด 160 kVA (ซิงก์เรียบร้อย)',
+    message: 'TR41-001773: ตรวจสอบโหลด 38.4 kVA (38.4%) ฟิวส์ 6T ปกติ',
     type: 'success'
   },
   {
     id: '2',
     timestamp: '5 นาทีที่แล้ว',
-    message: 'TR-006: บรรจุเข้าฐานข้อมูลจุดจ่ายไฟใหม่ (800 kVA)',
+    message: 'TR35-012428: ตรวจสอบโหลด 3.5 kVA (11.8%) สายแยกห้วยกาน',
     type: 'info'
   },
   {
     id: '3',
     timestamp: '15 นาทีที่แล้ว',
-    message: 'TR-002: ปรับพิกัดฟิวส์ 50T Type K ตามเกณฑ์ กฟภ.',
+    message: 'TR59-100462: ปรับพิกัดฟิวส์ 3T Type K ตามเกณฑ์ กฟภ.',
     type: 'warning'
   },
   {
     id: '4',
     timestamp: '30 นาทีที่แล้ว',
-    message: 'TR-003: สัญญาณเตือนโหลด 95% เสี่ยงตัดวงจร โซน C',
-    type: 'error'
+    message: 'TR39-000925: สัญญาณตรวจวัด 3 เฟส สมดุลปกติ ฟีดเดอร์ BGA02',
+    type: 'info'
   }
 ];

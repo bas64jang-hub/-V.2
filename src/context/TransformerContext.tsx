@@ -161,16 +161,21 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return ensureLineCutoutsAssigned(parsed);
+          const validIds = new Set(DEFAULT_TRANSFORMERS.map((t) => t.id));
+          const filtered = parsed.filter((t: Transformer) => validIds.has(t.id));
+          if (filtered.length === DEFAULT_TRANSFORMERS.length) {
+            return ensureLineCutoutsAssigned(filtered);
+          }
         }
       }
     } catch (e) {
       console.warn('Error reading transformers from localStorage', e);
     }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_TRANSFORMERS));
     return ensureLineCutoutsAssigned(DEFAULT_TRANSFORMERS);
   });
 
-  const [selectedId, setSelectedId] = useState<string>(() => DEFAULT_TRANSFORMERS[0]?.id || 'TR23-011134');
+  const [selectedId, setSelectedId] = useState<string>(() => DEFAULT_TRANSFORMERS[0]?.id || 'TR41-001773');
   const [activeTab, setActiveTab] = useState<NavTab>('landing');
 
   // Line Cutouts State
@@ -752,7 +757,10 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       ]);
 
       if (trRes && Array.isArray(trRes.data) && trRes.data.length > 0) {
-        const assigned = ensureLineCutoutsAssigned(trRes.data);
+        const validIds = new Set(DEFAULT_TRANSFORMERS.map((t) => t.id));
+        const filtered = trRes.data.filter((t: Transformer) => validIds.has(t.id));
+        const finalData = filtered.length === DEFAULT_TRANSFORMERS.length ? filtered : DEFAULT_TRANSFORMERS;
+        const assigned = ensureLineCutoutsAssigned(finalData);
         setTransformers(assigned);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(assigned));
         if (trRes.lastUpdated) {
@@ -796,7 +804,10 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // 2. Real-time Firestore listener for transformers (instant push across all devices worldwide)
     const unsubTransformers = subscribeToTransformers((remoteTransformers) => {
       if (Array.isArray(remoteTransformers) && remoteTransformers.length > 0) {
-        const assigned = ensureLineCutoutsAssigned(remoteTransformers);
+        const validIds = new Set(DEFAULT_TRANSFORMERS.map((t) => t.id));
+        const filtered = remoteTransformers.filter((t) => validIds.has(t.id));
+        const finalData = filtered.length === DEFAULT_TRANSFORMERS.length ? filtered : DEFAULT_TRANSFORMERS;
+        const assigned = ensureLineCutoutsAssigned(finalData);
         setTransformers(assigned);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(assigned));
       }
@@ -1048,7 +1059,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     persistTransformers(DEFAULT_TRANSFORMERS);
     resetTransformersApi();
     resetTransformersInFirestore(DEFAULT_TRANSFORMERS).catch((e) => console.warn('Firestore reset error', e));
-    setSelectedId(DEFAULT_TRANSFORMERS[0]?.id || 'TR23-011134');
+    setSelectedId(DEFAULT_TRANSFORMERS[0]?.id || 'TR41-001773');
     showToast(`รีเซ็ตฐานข้อมูลหม้อแปลงเป็นค่ามาตรฐานเริ่มต้น กฟส.บ้านโฮ่ง ทั้งหมด ${DEFAULT_TRANSFORMERS.length} เครื่องแล้ว (ซิงก์ทุกอุปกรณ์)`, 'DB_RESET', 'info');
     addAuditLog(`รีเซ็ตฐานข้อมูลกลางเป็นค่าเริ่มต้น กฟส.บ้านโฮ่ง ${DEFAULT_TRANSFORMERS.length} เครื่อง`, 'info');
   };

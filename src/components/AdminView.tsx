@@ -143,8 +143,8 @@ export const AdminView: React.FC = () => {
     currentUser?.name?.toLowerCase() === 'super9955';
 
   // Transformer Editor State
-  const [editingId, setEditingId] = useState<string>(() => transformers[0]?.id || 'TR23-011134');
-  const [formId, setFormId] = useState<string>(() => transformers[0]?.id || 'TR23-011134');
+  const [editingId, setEditingId] = useState<string>(() => transformers[0]?.id || 'TR41-001773');
+  const [formId, setFormId] = useState<string>(() => transformers[0]?.id || 'TR41-001773');
   const [formName, setFormName] = useState<string>('');
   const [formArea, setFormArea] = useState<string>('');
   const [formKva, setFormKva] = useState<number>(500);
@@ -1581,7 +1581,7 @@ export const AdminView: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setEditingId(transformers[0]?.id || 'TR23-011134')}
+              onClick={() => setEditingId(transformers[0]?.id || 'TR41-001773')}
               className="py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
             >
               คืนค่าเดิม

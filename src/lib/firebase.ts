@@ -59,7 +59,7 @@ export function subscribeToTransformers(
       snapshot.forEach((docSnap) => {
         items.push(docSnap.data() as Transformer);
       });
-      // Sort items by ID if available
+      // Sort items by ID
       items.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
       onUpdate(items);
     },
@@ -88,7 +88,8 @@ export async function deleteTransformerFromFirestore(id: string): Promise<void> 
 }
 
 /**
- * Batch seed transformers if the collection is empty or contains old demo data.
+ * Batch seed transformers if the collection is empty, has mismatched count, or contains old data.
+ * Guarantees that only the exact 15 fleet transformers exist.
  */
 export async function seedInitialTransformersIfEmpty(
   initialList: Transformer[]
@@ -96,26 +97,29 @@ export async function seedInitialTransformersIfEmpty(
   try {
     const colRef = collection(db, TRANSFORMERS_COL);
     const snap = await getDocs(colRef);
-    // If empty or contains fewer items than the complete Ban Hong fleet (853 items)
-    if ((snap.empty || snap.size < initialList.length) && initialList.length > 0) {
-      // If there were old demo items, delete them
+    const validIds = new Set(initialList.map((t) => t.id));
+
+    // Check if Firestore matches the exact 15 transformers
+    const hasExact15 =
+      !snap.empty &&
+      snap.size === initialList.length &&
+      snap.docs.every((d) => validIds.has(d.id));
+
+    if (!hasExact15 && initialList.length > 0) {
+      // Purge all old or mismatched documents
       if (!snap.empty) {
         const delBatch = writeBatch(db);
         snap.forEach((d) => delBatch.delete(d.ref));
         await delBatch.commit();
       }
 
-      // Batch in chunks of 350 (Firestore limit is 500 per batch)
-      const chunkSize = 350;
-      for (let i = 0; i < initialList.length; i += chunkSize) {
-        const batch = writeBatch(db);
-        const slice = initialList.slice(i, i + chunkSize);
-        for (const item of slice) {
-          const ref = doc(db, TRANSFORMERS_COL, item.id);
-          batch.set(ref, item);
-        }
-        await batch.commit();
+      // Batch set the 15 transformers
+      const batch = writeBatch(db);
+      for (const item of initialList) {
+        const ref = doc(db, TRANSFORMERS_COL, item.id);
+        batch.set(ref, item);
       }
+      await batch.commit();
       return true;
     }
     return false;

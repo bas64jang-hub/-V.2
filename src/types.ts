@@ -265,7 +265,7 @@ export interface LoadMeasurement {
 export interface InspectionRecord {
   id: string; // e.g. "INS-2025-001" or timestamp
   docNumber: string; // Form number: "ข-2 มป.11-ป.68"
-  transformerId: string; // e.g. "TR23-011134"
+  transformerId: string; // e.g. "TR41-001773"
   transformerName: string;
   poleId: string;
   feeder: string;

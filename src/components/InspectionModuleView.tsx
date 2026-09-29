@@ -84,7 +84,7 @@ export const InspectionModuleView: React.FC = () => {
     return {
       id: `INS-68-${Date.now().toString().slice(-5)}`,
       docNumber: 'ข-2 มป.11-ป.68',
-      transformerId: firstTr?.id || 'TR23-011134',
+      transformerId: firstTr?.id || 'TR41-001773',
       transformerName: firstTr?.name || 'หม้อแปลงไฟฟ้า กฟภ.',
       poleId: firstTr?.poleId || '1000001370',
       feeder: 'BGA01',

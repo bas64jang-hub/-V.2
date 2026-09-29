@@ -54,7 +54,7 @@ export const QuickFieldLogModal: React.FC<QuickFieldLogModalProps> = ({
     if (initialTargetType === 'transformer' && initialTargetId) {
       return initialTargetId;
     }
-    return transformers[0]?.id || 'TR23-011134';
+    return transformers[0]?.id || 'TR41-001773';
   });
 
   const selectedTransformer = useMemo(() => {
