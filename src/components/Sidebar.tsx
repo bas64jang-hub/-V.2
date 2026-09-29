@@ -19,6 +19,7 @@ import {
   Flame,
   Compass,
   ClipboardCheck,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -37,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     auditLogs,
     transformers,
     lineCutouts,
+    transformerIncidents,
     triggerSync,
     openNearbyModal,
     isLocating,
@@ -46,6 +48,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setActiveTab(tab);
     setMobileMenuOpen(false);
   };
+
+  const pendingFuseCount = transformerIncidents.filter(
+    (inc) => inc.status === 'pending_standard_replacement' || !inc.isFuseMatchOriginal
+  ).length;
 
   const navLinks = [
     {
@@ -65,6 +71,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'ฟิวส์ตัดไลน์สายสาขา',
       icon: <Layers className="w-5 h-5" />,
       tag: 'คำนวณ & บันทึกค่า',
+    },
+    {
+      id: 'incidents' as NavTab,
+      label: 'ประวัติเข้าทำงาน (เกิดเหตุ)',
+      icon: <ShieldAlert className="w-5 h-5 text-amber-500" />,
+      tag: pendingFuseCount > 0 ? `⚠️ รอแก้ ${pendingFuseCount}` : `${transformerIncidents.length} รายการ`,
     },
     {
       id: 'inspection' as NavTab,
@@ -237,13 +249,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </div>
           <ul className="flex flex-col gap-2 text-xs text-slate-600">
-            {auditLogs.slice(0, 4).map((item) => {
+            {auditLogs.slice(0, 4).map((item, idx) => {
               let dotColor = 'text-[#006948]';
               if (item.type === 'error') dotColor = 'text-red-500';
               if (item.type === 'warning') dotColor = 'text-amber-500';
 
               return (
-                <li key={item.id} className="flex items-start gap-1.5 leading-snug">
+                <li key={`${item.id}-${idx}`} className="flex items-start gap-1.5 leading-snug">
                   <span className={`${dotColor} font-bold text-sm leading-none`}>•</span>
                   <span className="text-[11px]">{item.message}</span>
                 </li>

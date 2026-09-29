@@ -50,6 +50,7 @@ export const DashboardView: React.FC = () => {
     isLocating,
     resetToDefaults,
     showToast,
+    getActiveMismatchNotice,
   } = useTransformers();
 
   // Mode: Show Protection Devices first (as requested: "ให้แสดง ค่าอุปกรณ์ป้องกันก่อน") or Transformers list
@@ -636,6 +637,16 @@ export const DashboardView: React.FC = () => {
                         {unit.fuse}
                       </span>
                     </div>
+
+                    {/* Mismatch Warning Alert if pending fuse standard fix */}
+                    {getActiveMismatchNotice(unit.id) && (
+                      <div className="p-2 rounded-xl bg-amber-100 text-amber-950 border border-amber-300 text-[11px] font-bold flex items-center gap-1.5 shadow-2xs">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0 animate-pulse" />
+                        <span className="truncate">
+                          ⚠️ ฟิวส์รอเปลี่ยน ({getActiveMismatchNotice(unit.id)?.newFuseInstalled} ➔ {getActiveMismatchNotice(unit.id)?.standardFuse})
+                        </span>
+                      </div>
+                    )}
 
                     {/* Electrical Parameters Grid */}
                     <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-center text-xs">

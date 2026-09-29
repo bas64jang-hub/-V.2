@@ -18,6 +18,7 @@ export const MobileNavBar: React.FC = () => {
     { id: 'landing', label: 'หน้าแรก', icon: <Home className="w-4 h-4" /> },
     { id: 'dashboard', label: 'จุดป้องกัน', icon: <Shield className="w-4 h-4" /> },
     { id: 'linecutout', label: 'ฟิวส์ตัดไลน์', icon: <Layers className="w-4 h-4" /> },
+    { id: 'incidents', label: 'เหตุการณ์', icon: <Shield className="w-4 h-4 text-amber-600" /> },
     { id: 'inspection', label: 'มป.11', icon: <ClipboardCheck className="w-4 h-4" /> },
     { id: 'detail', label: 'หม้อแปลง', icon: <MapPin className="w-4 h-4" /> },
     { id: 'calculator', label: 'สูตร กฟภ.', icon: <Calculator className="w-4 h-4" /> },

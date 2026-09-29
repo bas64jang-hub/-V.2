@@ -161,7 +161,7 @@ export interface PeaMatrixRow {
   note: string;
 }
 
-export type NavTab = 'landing' | 'dashboard' | 'detail' | 'linecutout' | 'calculator' | 'admin' | 'inspection';
+export type NavTab = 'landing' | 'dashboard' | 'detail' | 'linecutout' | 'calculator' | 'admin' | 'inspection' | 'incidents';
 
 export type InspectionStatus = 'pass' | 'warning' | 'corrective' | 'segregate';
 
@@ -170,6 +170,19 @@ export type TransformerClassification =
   | 'หม้อแปลงชำรุดเล็กน้อย'
   | 'หม้อแปลงชำรุดหนัก'
   | 'หม้อแปลงชำรุดหนักเห็นควรจำหน่าย';
+
+export interface EvaluationCriterion {
+  id: string; // 'visual' | 'grounding' | 'insulation' | 'oil' | 'winding' | 'load'
+  name: string;
+  category: string;
+  standardBenchmark: string;
+  measuredSummary: string;
+  status: 'pass' | 'warning' | 'fail';
+  aiSummary: string; // ผลสรุปการวิเคราะห์โดย AI ตามเกณฑ์มาตรฐาน (ล็อก ไม่ให้เปลี่ยนแปลงได้)
+  aiRecommendation: string; // ข้อเสนอแนะและงานแก้ไขโดย AI ตามเกณฑ์มาตรฐาน (ล็อก ไม่ให้เปลี่ยนแปลงได้)
+  evaluatedAt?: string;
+  isAiLocked: boolean;
+}
 
 export type VisualCheckStatus = 'good' | 'warning' | 'defect' | 'na';
 
@@ -307,6 +320,7 @@ export interface InspectionRecord {
   summaryNotes: string;
   actionItems: string;
   workOrderNo?: string;
+  criteriaEvaluations?: EvaluationCriterion[];
   
   // Signatures
   inspectorName: string;
@@ -331,4 +345,69 @@ export interface UserLocation {
 export interface NearbyTransformer extends Transformer {
   distanceKm: number;
   distanceFormatted: string;
+}
+
+export type IncidentCause =
+  | 'fuse_blown_lightning' // ฟิวส์แรงสูงขาดจากฟ้าผ่า / Overvoltage Surge
+  | 'fuse_blown_overload' // โหลดเกินพิกัด (Overload Trip)
+  | 'fuse_blown_tree' // กิ่งไม้พาดสาย / สัมผัสสาย (Tree Contact)
+  | 'fuse_blown_animal' // สัตว์แตะสายไฟ / งู / กระรอก (Animal Contact)
+  | 'fuse_aged' // ฟิวส์เสื่อมสภาพตามอายุการใช้งาน (Aging / Fatigue)
+  | 'short_circuit_lv' // ลัดวงจรฝั่งแรงต่ำ (Secondary Short Circuit)
+  | 'arrester_fault' // กับดักฟ้าผ่าชำรุด (Surge Arrester Failed)
+  | 'other'; // เหตุอื่นๆ
+
+export type IncidentResolutionStatus =
+  | 'resolved_standard' // แก้ไขเสร็จสิ้น - ฟิวส์ตรงมาตรฐาน
+  | 'pending_standard_replacement' // แก้ไขชั่วคราว - ฟิวส์ไม่ตรงมาตรฐาน (รอเปลี่ยนให้ตรงมาตรฐานในงานซ่อมแซมครั้งต่อไป)
+  | 'scheduled_followup'; // นัดหมายติดตามผลเพิ่มเติม
+
+export interface TransformerIncidentLog {
+  id: string; // e.g. "INC-2025-001"
+  transformerId: string; // e.g. "TR41-001773"
+  transformerName: string;
+  poleId: string;
+  area: string;
+  feeder?: string;
+  transformerKva: number;
+  voltageKv: number; // 22 or 33
+  
+  // วันที่/เวลา และ ผู้ปฏิบัติงาน
+  incidentDate: string; // YYYY-MM-DD
+  incidentTime: string; // HH:MM
+  linemanName: string; // ชื่อช่าง/ผู้ปฏิบัติงาน
+  linemanEmpId?: string; // รหัสพนักงาน กฟภ.
+  crewDept: string; // สังกัด/แผนกปฏิบัติการ
+  ticketNumber?: string; // เลขที่ใบสั่งงาน / เลขที่แจ้งเหตุ
+  
+  // สาเหตุและรายงานเหตุการณ์
+  cause: IncidentCause;
+  causeLabel: string;
+  causeDetail: string; // รายละเอียดเหตุการณ์
+  symptoms: string; // อาการที่ตรวจพบหน้างาน
+  actionTaken: string; // งานที่ได้ดำเนินการแก้ไข
+  
+  // การจัดการฟิวส์ (เดิม vs เปลี่ยนใหม่ vs มาตรฐาน)
+  originalFuse: string; // ขนาดฟิวส์เดิมของหม้อแปลงเครื่องนี้ (เช่น "6T", "25T")
+  standardFuse: string; // ขนาดฟิวส์มาตรฐาน กฟภ. แนะนำตามขนาด kVA และแรงดัน (เช่น "6T", "25T")
+  newFuseInstalled: string; // ขนาดฟิวส์ที่เปลี่ยนใหม่หน้างาน (เช่น "15T", "25T", etc.)
+  fuseType?: 'T' | 'K';
+  
+  // ผลการตรวจสอบความตรงกันของระบบ (System Automated Verification)
+  isFuseMatchOriginal: boolean; // ตรงกับฟิวส์เดิมหรือไม่
+  isFuseMatchStandard: boolean; // ตรงกับมาตรฐาน กฟภ. หรือไม่
+  
+  // คำเตือนและข้อกำหนดสำหรับงานซ่อมแซมในอนาคต
+  verificationStatus: 'match' | 'mismatch_warning';
+  verificationMessage: string;
+  futureActionNotice?: string; // ข้อความแสดงว่าในอนาคตเมื่อมาซ่อมแซมให้เปลี่ยนฟิวส์ให้ตรงกับมาตรฐาน
+  
+  // ข้อมูลวัดซ้ำหลังจ่ายไฟ
+  loadAmpAfter?: number;
+  voltageAfter?: number;
+  status: IncidentResolutionStatus;
+  
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
 }

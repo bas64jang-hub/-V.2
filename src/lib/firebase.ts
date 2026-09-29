@@ -14,7 +14,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Transformer, AccountRecord, AuditLogItem, InspectionRecord, LineCutoutRecord, QuickFieldLog } from '../types';
+import { Transformer, AccountRecord, AuditLogItem, InspectionRecord, LineCutoutRecord, QuickFieldLog, TransformerIncidentLog } from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
@@ -42,6 +42,7 @@ const AUDIT_LOGS_COL = 'auditLogs';
 const INSPECTIONS_COL = 'inspections';
 const LINE_CUTOUT_RECORDS_COL = 'lineCutoutRecords';
 const QUICK_FIELD_LOGS_COL = 'quickFieldLogs';
+const TRANSFORMER_INCIDENTS_COL = 'transformerIncidents';
 
 /**
  * Real-time listener for all transformers.
@@ -422,3 +423,62 @@ export async function seedInitialQuickFieldLogsIfEmpty(
     return false;
   }
 }
+
+/**
+ * Real-time listener for emergency incident and fuse replacement logs
+ */
+export function subscribeToTransformerIncidents(
+  onUpdate: (incidents: TransformerIncidentLog[]) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, TRANSFORMER_INCIDENTS_COL);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: TransformerIncidentLog[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as TransformerIncidentLog);
+      });
+      // Sort newest incident first
+      items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('Error subscribing to transformer incidents in Firestore:', err);
+      onError?.(err);
+    }
+  );
+}
+
+export async function saveTransformerIncidentToFirestore(incident: TransformerIncidentLog): Promise<void> {
+  const docRef = doc(db, TRANSFORMER_INCIDENTS_COL, incident.id);
+  await setDoc(docRef, incident, { merge: true });
+}
+
+export async function deleteTransformerIncidentFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, TRANSFORMER_INCIDENTS_COL, id);
+  await deleteDoc(docRef);
+}
+
+export async function seedInitialTransformerIncidentsIfEmpty(
+  initialList: TransformerIncidentLog[]
+): Promise<boolean> {
+  try {
+    const colRef = collection(db, TRANSFORMER_INCIDENTS_COL);
+    const snap = await getDocs(colRef);
+    if (snap.empty && initialList.length > 0) {
+      const batch = writeBatch(db);
+      for (const item of initialList) {
+        const ref = doc(db, TRANSFORMER_INCIDENTS_COL, item.id);
+        batch.set(ref, item);
+      }
+      await batch.commit();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('Failed to seed transformer incidents in Firestore:', e);
+    return false;
+  }
+}
+

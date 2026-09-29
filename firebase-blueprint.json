@@ -116,6 +116,30 @@
         "status": { "type": "string" }
       },
       "required": ["id", "targetType", "targetId", "timestamp", "engineerName", "status"]
+    },
+    "TransformerIncidentLog": {
+      "title": "TransformerIncidentLog",
+      "description": "Emergency incident and fuse replacement work history for individual transformers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "transformerId": { "type": "string" },
+        "transformerName": { "type": "string" },
+        "poleId": { "type": "string" },
+        "incidentDate": { "type": "string" },
+        "incidentTime": { "type": "string" },
+        "linemanName": { "type": "string" },
+        "cause": { "type": "string" },
+        "actionTaken": { "type": "string" },
+        "originalFuse": { "type": "string" },
+        "standardFuse": { "type": "string" },
+        "newFuseInstalled": { "type": "string" },
+        "isFuseMatchOriginal": { "type": "boolean" },
+        "verificationStatus": { "type": "string" },
+        "futureActionNotice": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "transformerId", "incidentDate", "linemanName", "newFuseInstalled", "status"]
     }
   },
   "firestore": {
@@ -142,6 +166,10 @@
     "/quickFieldLogs/{logId}": {
       "schema": "QuickFieldLog",
       "description": "Quick field measurement values and logs"
+    },
+    "/transformerIncidents/{incidentId}": {
+      "schema": "TransformerIncidentLog",
+      "description": "Emergency incident and fuse replacement work history per transformer"
     }
   }
 }

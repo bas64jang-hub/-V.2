@@ -12,6 +12,8 @@ import { AdminView } from './components/AdminView';
 import { LineCutoutView } from './components/LineCutoutView';
 import { InspectionModuleView } from './components/InspectionModuleView';
 import { NearbyTransformersModal } from './components/NearbyTransformersModal';
+import { IncidentHistoryView } from './components/IncidentHistoryView';
+import { TransformerIncidentModal } from './components/TransformerIncidentModal';
 
 const MainContent: React.FC = () => {
   const { activeTab } = useTransformers();
@@ -28,6 +30,7 @@ const MainContent: React.FC = () => {
       <div className="min-h-screen bg-[#f4f7f5] text-slate-900 font-sans">
         <Toast />
         <NearbyTransformersModal />
+        <TransformerIncidentModal />
         <LandingView />
       </div>
     );
@@ -37,6 +40,7 @@ const MainContent: React.FC = () => {
     <>
       {activeTab === 'dashboard' && <DashboardView />}
       {activeTab === 'linecutout' && <LineCutoutView />}
+      {activeTab === 'incidents' && <IncidentHistoryView />}
       {activeTab === 'inspection' && <InspectionModuleView />}
       {activeTab === 'detail' && <DetailView />}
       {activeTab === 'calculator' && <FuseCalculatorView />}
@@ -48,6 +52,7 @@ const MainContent: React.FC = () => {
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       <Toast />
       <NearbyTransformersModal />
+      <TransformerIncidentModal />
       <Header mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto pt-16 sm:pt-20 pb-28 md:pb-16 px-3 sm:px-5 md:px-6 flex flex-col md:flex-row gap-4 sm:gap-6">

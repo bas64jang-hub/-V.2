@@ -43,5 +43,11 @@ service cloud.firestore {
       allow create, update: if isValidId(logId) && request.resource.data.id is string;
       allow delete: if isValidId(logId);
     }
+
+    match /transformerIncidents/{incidentId} {
+      allow read: if true;
+      allow create, update: if isValidId(incidentId) && request.resource.data.id is string;
+      allow delete: if isValidId(incidentId);
+    }
   }
 }

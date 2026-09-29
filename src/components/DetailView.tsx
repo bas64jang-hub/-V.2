@@ -24,7 +24,15 @@ import {
   Sparkles,
   Radio,
   ClipboardCheck,
+  ShieldAlert,
+  Wrench,
+  Plus,
+  History,
+  Calendar,
+  User,
+  FileText,
 } from 'lucide-react';
+import { TransformerIncidentLog } from '../types';
 
 export const DetailView: React.FC = () => {
   const {
@@ -42,12 +50,18 @@ export const DetailView: React.FC = () => {
     locateUser,
     openNearbyModal,
     createInspectionForTransformer,
+    getIncidentsForTransformer,
+    getActiveMismatchNotice,
+    openIncidentModalForTransformer,
+    saveTransformerIncident,
   } = useTransformers();
 
-  const [mobileTab, setMobileTab] = useState<'all' | 'telemetry' | 'protection' | 'location'>('all');
+  const [mobileTab, setMobileTab] = useState<'all' | 'telemetry' | 'protection' | 'incidents' | 'location'>('all');
   const [mapType, setMapType] = useState<'m' | 'k'>('m'); // 'm' for normal roadmap, 'k' for satellite
 
   const tr = selectedTransformer || transformers[0];
+  const trIncidents = tr ? getIncidentsForTransformer(tr.id) : [];
+  const activeMismatch = tr ? getActiveMismatchNotice(tr.id) : null;
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -161,6 +175,66 @@ export const DetailView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Persistent Maintenance Alert Banner when Fuse is Mismatched */}
+      {activeMismatch && (
+        <div className="w-full bg-linear-to-r from-amber-500 via-orange-500 to-amber-600 p-4 sm:p-5 rounded-2xl text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-2 border-amber-300 animate-fade-in">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-xs mt-0.5 border border-white/30">
+              <AlertTriangle className="w-6 h-6 text-white animate-bounce" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-white text-amber-950 font-black text-xs px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                  คำเตือนสำหรับทีมงานซ่อมแซม (Maintenance Alert)
+                </span>
+                <span className="text-xs font-mono text-amber-100">
+                  {tr?.id} • บันทึกเมื่อ {activeMismatch.incidentDate}
+                </span>
+              </div>
+              <p className="text-sm font-bold text-white mt-1 leading-snug">
+                หม้อแปลงเครื่องนี้มีการเปลี่ยนฟิวส์ชั่วคราวที่ไม่ตรงสเปกเดิม ({activeMismatch.newFuseInstalled} แทน {activeMismatch.originalFuse})
+              </p>
+              <div className="mt-2 bg-black/20 backdrop-blur-xs p-2.5 rounded-xl border border-white/20 text-xs text-amber-100 flex items-center gap-2 flex-wrap">
+                <strong className="text-white">📌 คำสั่งการในอนาคต:</strong>
+                <span>"{activeMismatch.futureActionNotice}"</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto flex-wrap">
+            <button
+              type="button"
+              onClick={() => openIncidentModalForTransformer(tr?.id)}
+              className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-50 text-amber-950 font-extrabold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Plus className="w-4 h-4 text-amber-700" />
+              <span>เขียนรายงานใหม่</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const restored: TransformerIncidentLog = {
+                  ...activeMismatch,
+                  status: 'resolved_standard',
+                  isFuseMatchOriginal: true,
+                  newFuseInstalled: activeMismatch.standardFuse,
+                  verificationStatus: 'match',
+                  verificationMessage: `✅ เปลี่ยนฟิวส์ให้ตรงกับมาตรฐาน กฟภ. (${activeMismatch.standardFuse}) เรียบร้อยแล้ว`,
+                  notes: `${activeMismatch.notes || ''} [ช่างเข้าเปลี่ยนฟิวส์กลับเป็นมาตรฐาน ${activeMismatch.standardFuse} แล้ว]`,
+                  updatedAt: Date.now(),
+                };
+                saveTransformerIncident(restored);
+                showToast(`บันทึกการเปลี่ยนฟิวส์ ${tr?.id} กลับเป็นมาตรฐาน (${activeMismatch.standardFuse}) สำเร็จ`, 'STANDARD_RESTORED', 'success');
+              }}
+              className="px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+              <span>เปลี่ยนฟิวส์ตรงมาตรฐานแล้ว</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header & Quick Selector */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-4">
@@ -296,6 +370,14 @@ export const DetailView: React.FC = () => {
             }`}
           >
             🛡️ ระบบป้องกัน
+          </button>
+          <button
+            onClick={() => setMobileTab('incidents')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all ${
+              mobileTab === 'incidents' ? 'bg-[#006948] text-white shadow-xs' : 'text-slate-600'
+            }`}
+          >
+            ⚠️ ประวัติเหตุการณ์ ({trIncidents.length})
           </button>
           <button
             onClick={() => setMobileTab('location')}
@@ -600,10 +682,198 @@ export const DetailView: React.FC = () => {
             </div>
           </div>
           )}
+
+          {/* Card 3: Emergency Incident & Fuse Replacement History (Separated per Transformer) */}
+          {(mobileTab === 'all' || mobileTab === 'incidents') && (
+          <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-600" />
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                    <span>ประวัติการเข้าทำงานเมื่อเกิดเหตุ</span>
+                    <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                      {tr?.id} ({trIncidents.length} รายการ)
+                    </span>
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => openIncidentModalForTransformer(tr?.id)}
+                className="px-3 py-1.5 rounded-lg bg-[#006948] hover:bg-[#005137] text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>เขียนรายงานเข้าทำงาน</span>
+              </button>
+            </div>
+
+            {/* Mismatch Alert Box inside the transformer card if applicable */}
+            {activeMismatch && (
+              <div className="p-3.5 rounded-xl bg-amber-50 border-2 border-amber-400 text-xs text-amber-950 flex flex-col gap-2">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong className="font-bold text-amber-950">คำเตือนสำหรับงานซ่อมแซมในอนาคต:</strong>
+                      <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-amber-200 text-amber-900 border border-amber-300 font-bold">
+                        FUSE MISMATCH
+                      </span>
+                    </div>
+                    <p className="font-semibold text-slate-900 mt-1 bg-white/80 p-2 rounded-lg border border-amber-300">
+                      "{activeMismatch.futureActionNotice}"
+                    </p>
+                    <p className="text-[11px] text-amber-900 mt-1">
+                      ฟิวส์ที่เปลี่ยนใหม่ล่าสุดคือ <strong>{activeMismatch.newFuseInstalled}</strong> (เดิมคือ <strong>{activeMismatch.originalFuse}</strong> / มาตรฐานแนะนำ <strong>{activeMismatch.standardFuse}</strong>)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const restored: TransformerIncidentLog = {
+                        ...activeMismatch,
+                        status: 'resolved_standard',
+                        isFuseMatchOriginal: true,
+                        newFuseInstalled: activeMismatch.standardFuse,
+                        verificationStatus: 'match',
+                        verificationMessage: `✅ เปลี่ยนฟิวส์ให้ตรงกับมาตรฐาน กฟภ. (${activeMismatch.standardFuse}) เรียบร้อยแล้ว`,
+                        notes: `${activeMismatch.notes || ''} [ช่างเข้าเปลี่ยนฟิวส์กลับเป็นมาตรฐาน ${activeMismatch.standardFuse} แล้ว]`,
+                        updatedAt: Date.now(),
+                      };
+                      saveTransformerIncident(restored);
+                      showToast(`บันทึกการเปลี่ยนฟิวส์ ${tr?.id} กลับเป็นมาตรฐาน (${activeMismatch.standardFuse}) สำเร็จ`, 'STANDARD_RESTORED', 'success');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>บันทึกว่าเปลี่ยนฟิวส์ตรงมาตรฐานแล้ว ({activeMismatch.standardFuse})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Incidents List for this Transformer */}
+            {trIncidents.length === 0 ? (
+              <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center flex flex-col items-center justify-center gap-2">
+                <FileText className="w-6 h-6 text-slate-400" />
+                <p className="text-xs font-bold text-slate-700">ยังไม่มีประวัติการเข้าทำงานเมื่อเกิดเหตุสำหรับหม้อแปลงนี้</p>
+                <p className="text-[11px] text-slate-500">
+                  เมื่อเกิดเหตุฉุกเฉินหรือฟิวส์ขาด ผู้ปฏิบัติงานสามารถกดปุ่ม "เขียนรายงานเข้าทำงาน" ด้านบน เพื่อกรอกขนาดฟิวส์ที่เปลี่ยนใหม่
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {trIncidents.map((incident) => {
+                  const isMis = incident.status === 'pending_standard_replacement' || !incident.isFuseMatchOriginal;
+
+                  return (
+                    <div
+                      key={incident.id}
+                      className={`p-3.5 rounded-xl border text-xs flex flex-col gap-2.5 transition-all ${
+                        isMis
+                          ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-300/40'
+                          : 'bg-slate-50/80 border-slate-200'
+                      }`}
+                    >
+                      {/* Incident Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-200/60">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                            {incident.id}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isMis
+                                ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                                : 'bg-emerald-100 text-[#006948] border border-emerald-200'
+                            }`}
+                          >
+                            {isMis ? '⚠️ ฟิวส์รอเปลี่ยนให้ตรงมาตรฐาน' : '✅ ฟิวส์ตรงมาตรฐาน'}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-700">
+                            {incident.causeLabel}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>{incident.incidentDate} {incident.incidentTime} น.</span>
+                        </div>
+                      </div>
+
+                      {/* 3-Column Fuse Comparison */}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-white p-2 rounded-lg border border-slate-200 flex flex-col">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">ฟิวส์เดิม</span>
+                          <span className="font-mono text-sm font-bold text-slate-800">{incident.originalFuse}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-slate-200 flex flex-col">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">มาตรฐาน กฟภ.</span>
+                          <span className="font-mono text-sm font-bold text-[#006948]">{incident.standardFuse}</span>
+                        </div>
+                        <div
+                          className={`p-2 rounded-lg border flex flex-col ${
+                            isMis
+                              ? 'bg-amber-100/70 border-amber-400 text-amber-950 font-bold'
+                              : 'bg-emerald-50 border-emerald-300 text-[#006948] font-bold'
+                          }`}
+                        >
+                          <span className="text-[9px] uppercase font-bold text-slate-500">ฟิวส์ที่เปลี่ยนใหม่</span>
+                          <span className="font-mono text-sm font-extrabold">{incident.newFuseInstalled}</span>
+                        </div>
+                      </div>
+
+                      {/* Mismatch Directive Callout */}
+                      {isMis && (
+                        <div className="bg-white p-2.5 rounded-lg border border-amber-300 text-[11px] text-amber-950 flex flex-col gap-1">
+                          <div className="flex items-center gap-1 font-bold text-amber-900">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>ข้อสั่งการในอนาคต:</span>
+                          </div>
+                          <p className="font-semibold text-slate-900 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                            "{incident.futureActionNotice}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Symptoms & Action */}
+                      <div className="text-[11px] text-slate-600 space-y-1">
+                        <p><strong>อาการ:</strong> {incident.symptoms}</p>
+                        <p><strong>การแก้ไข:</strong> {incident.actionTaken}</p>
+                        {incident.loadAmpAfter && (
+                          <p className="text-[#006948] font-mono">
+                            <strong>วัดกระแสโหลดหลังจ่ายไฟ:</strong> {incident.loadAmpAfter} A (แรงดัน {incident.voltageAfter || 400} V)
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Lineman info */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-200/60">
+                        <div className="flex items-center gap-1">
+                          <User className="w-3 h-3 text-slate-400" />
+                          <span>ผู้ปฏิบัติงาน: <strong className="text-slate-700">{incident.linemanName}</strong></span>
+                        </div>
+                        {incident.ticketNumber && (
+                          <span className="font-mono text-slate-500">
+                            ใบสั่งงาน: {incident.ticketNumber}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Location, Field Navigation, SLD & QR Code (5 cols) */}
-        <div className={`lg:col-span-5 flex-col gap-4 sm:gap-6 ${mobileTab === 'telemetry' || mobileTab === 'protection' ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`lg:col-span-5 flex-col gap-4 sm:gap-6 ${mobileTab === 'telemetry' || mobileTab === 'protection' || mobileTab === 'incidents' ? 'hidden lg:flex' : 'flex'}`}>
           {/* Location & Navigation Card */}
           <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-3.5 sm:gap-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">

@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab, LineCutout, UserLocation, InspectionRecord, LineCutoutRecord, QuickFieldLog } from '../types';
+import { Transformer, UserRole, AccountRecord, AuditLogItem, NavTab, LineCutout, UserLocation, InspectionRecord, LineCutoutRecord, QuickFieldLog, TransformerIncidentLog } from '../types';
 import { DEFAULT_TRANSFORMERS, DEFAULT_ACCOUNTS, INITIAL_AUDIT_LOGS } from '../data/defaultData';
 import { INITIAL_INSPECTIONS, DEFAULT_VISUAL_CHECKS } from '../data/defaultInspections';
 import { INITIAL_LINE_CUTOUT_RECORDS, INITIAL_QUICK_FIELD_LOGS } from '../data/defaultLineCutoutRecords';
+import { INITIAL_TRANSFORMER_INCIDENTS } from '../data/defaultIncidents';
 import { DEFAULT_LINE_CUTOUTS, getLineCutoutAssignment } from '../data/lineCutoutData';
 import { DEMO_BAN_HONG_COORDS } from '../lib/geoUtils';
 import {
@@ -25,6 +26,9 @@ import {
   deleteLineCutoutRecordApi,
   saveQuickFieldLogApi,
   deleteQuickFieldLogApi,
+  fetchTransformerIncidentsApi,
+  saveTransformerIncidentApi,
+  deleteTransformerIncidentApi,
 } from '../lib/api';
 import {
   subscribeToTransformers,
@@ -50,12 +54,17 @@ import {
   saveQuickFieldLogToFirestore,
   deleteQuickFieldLogFromFirestore,
   seedInitialQuickFieldLogsIfEmpty,
+  subscribeToTransformerIncidents,
+  saveTransformerIncidentToFirestore,
+  deleteTransformerIncidentFromFirestore,
+  seedInitialTransformerIncidentsIfEmpty,
 } from '../lib/firebase';
 
 const STORAGE_KEY = 'smart_transformer_db';
 const LINECUTOUTS_STORAGE_KEY = 'pea_line_cutouts_db';
 const LINECUTOUT_RECORDS_KEY = 'pea_line_cutout_records_db';
 const QUICK_FIELD_LOGS_KEY = 'pea_quick_field_logs_db';
+const TRANSFORMER_INCIDENTS_KEY = 'pea_transformer_incidents_db';
 const ACCOUNTS_STORAGE_KEY = 'pea_access_requests';
 const INSPECTIONS_STORAGE_KEY = 'pea_inspections_db';
 const SESSION_USER_KEY = 'pea_admin_user';
@@ -138,6 +147,18 @@ interface TransformerContextType {
   deleteInspection: (id: string) => void;
   resetInspections: () => void;
   createInspectionForTransformer: (transformerId: string) => void;
+  transformerIncidents: TransformerIncidentLog[];
+  saveTransformerIncident: (incident: TransformerIncidentLog) => void;
+  deleteTransformerIncident: (id: string) => void;
+  getIncidentsForTransformer: (transformerId: string) => TransformerIncidentLog[];
+  getActiveMismatchNotice: (transformerId: string) => TransformerIncidentLog | null;
+  isIncidentModalOpen: boolean;
+  setIsIncidentModalOpen: (open: boolean) => void;
+  incidentTargetTransformerId: string | null;
+  setIncidentTargetTransformerId: (id: string | null) => void;
+  editingIncident: TransformerIncidentLog | null;
+  setEditingIncident: (inc: TransformerIncidentLog | null) => void;
+  openIncidentModalForTransformer: (transformerId?: string) => void;
   metrics: {
     total: number;
     normal: number;
@@ -632,6 +653,95 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setActiveTab('inspection');
   };
 
+  // 1.9 Transformer Incident & Fuse Replacement Logs State
+  const [transformerIncidents, setTransformerIncidents] = useState<TransformerIncidentLog[]>(() => {
+    try {
+      const stored = localStorage.getItem(TRANSFORMER_INCIDENTS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading incidents from localStorage', e);
+    }
+    return INITIAL_TRANSFORMER_INCIDENTS;
+  });
+
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState<boolean>(false);
+  const [incidentTargetTransformerId, setIncidentTargetTransformerId] = useState<string | null>(null);
+  const [editingIncident, setEditingIncident] = useState<TransformerIncidentLog | null>(null);
+
+  const saveTransformerIncident = (incident: TransformerIncidentLog) => {
+    setTransformerIncidents((prev) => {
+      const idx = prev.findIndex((item) => item.id === incident.id);
+      let updated: TransformerIncidentLog[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = { ...incident, updatedAt: Date.now() };
+      } else {
+        updated = [{ ...incident, createdAt: incident.createdAt || Date.now(), updatedAt: Date.now() }, ...prev];
+      }
+      localStorage.setItem(TRANSFORMER_INCIDENTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    saveTransformerIncidentApi(incident).catch(console.warn);
+    saveTransformerIncidentToFirestore(incident).catch(console.warn);
+
+    // If new fuse is installed, also sync transformer's active fuse in the fleet
+    if (incident.newFuseInstalled) {
+      const tr = transformers.find((t) => t.id === incident.transformerId);
+      if (tr) {
+        saveTransformer({
+          id: tr.id,
+          fuse: incident.newFuseInstalled,
+        });
+      }
+    }
+
+    showToast(
+      incident.isFuseMatchOriginal
+        ? `บันทึกรายงานเหตุการณ์หม้อแปลง ${incident.transformerId} (ฟิวส์ตรงมาตรฐาน) สำเร็จ`
+        : `บันทึกรายงานเหตุการณ์หม้อแปลง ${incident.transformerId} (⚠️ ฟิวส์ไม่ตรงมาตรฐาน ต้องเปลี่ยนในงานซ่อมครั้งหน้า)`,
+      incident.isFuseMatchOriginal ? 'INCIDENT_SAVED' : 'FUSE_MISMATCH_ALERT',
+      incident.isFuseMatchOriginal ? 'success' : 'warning'
+    );
+
+    addAuditLog(
+      `บันทึกเหตุการณ์ ${incident.id} (${incident.transformerId}): ฟิวส์ใหม่ ${incident.newFuseInstalled} (เดิม ${incident.originalFuse}) โดย ${incident.linemanName} - ${incident.verificationStatus === 'match' ? 'ตรงมาตรฐาน' : 'รอเปลี่ยนให้ตรงมาตรฐานในอนาคต'}`,
+      incident.isFuseMatchOriginal ? 'success' : 'warning'
+    );
+  };
+
+  const deleteTransformerIncident = (id: string) => {
+    setTransformerIncidents((prev) => {
+      const updated = prev.filter((item) => item.id !== id);
+      localStorage.setItem(TRANSFORMER_INCIDENTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    deleteTransformerIncidentApi(id).catch(console.warn);
+    deleteTransformerIncidentFromFirestore(id).catch(console.warn);
+    showToast(`ลบประวัติเหตุการณ์ ${id} เรียบร้อย`, 'INCIDENT_DELETED', 'info');
+    addAuditLog(`ลบประวัติเหตุการณ์ ${id}`, 'info');
+  };
+
+  const getIncidentsForTransformer = (transformerId: string): TransformerIncidentLog[] => {
+    return transformerIncidents.filter((inc) => inc.transformerId === transformerId);
+  };
+
+  const getActiveMismatchNotice = (transformerId: string): TransformerIncidentLog | null => {
+    const list = transformerIncidents.filter((inc) => inc.transformerId === transformerId);
+    const pending = list.find((inc) => inc.status === 'pending_standard_replacement' || !inc.isFuseMatchOriginal);
+    return pending || null;
+  };
+
+  const openIncidentModalForTransformer = (transformerId?: string) => {
+    const targetId = transformerId || selectedId || transformers[0]?.id;
+    setIncidentTargetTransformerId(targetId);
+    setEditingIncident(null);
+    setIsIncidentModalOpen(true);
+  };
+
   // 2. User & Auth State
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const isAuth = localStorage.getItem(SESSION_STATUS_KEY) === 'true';
@@ -749,11 +859,12 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (isSyncing.current) return;
     isSyncing.current = true;
     try {
-      const [trRes, accRes, logRes, insRes] = await Promise.all([
+      const [trRes, accRes, logRes, insRes, incRes] = await Promise.all([
         fetchTransformersApi(),
         fetchAccountsApi(),
         fetchAuditLogsApi(),
         fetchInspectionsApi(),
+        fetchTransformerIncidentsApi(),
       ]);
 
       if (trRes && Array.isArray(trRes.data) && trRes.data.length > 0) {
@@ -782,6 +893,11 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         localStorage.setItem(INSPECTIONS_STORAGE_KEY, JSON.stringify(insRes.data));
       }
 
+      if (incRes && Array.isArray(incRes.data) && incRes.data.length > 0) {
+        setTransformerIncidents(incRes.data);
+        localStorage.setItem(TRANSFORMER_INCIDENTS_KEY, JSON.stringify(incRes.data));
+      }
+
       if (showNotification) {
         showToast('ซิงก์ข้อมูลกับเซิร์ฟเวอร์กลางสำเร็จ ข้อมูลตรงกันทุกอุปกรณ์', 'SERVER_SYNC_OK', 'info');
       }
@@ -800,6 +916,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
     seedInitialInspectionsIfEmpty(INITIAL_INSPECTIONS);
     seedInitialLineCutoutRecordsIfEmpty(INITIAL_LINE_CUTOUT_RECORDS);
     seedInitialQuickFieldLogsIfEmpty(INITIAL_QUICK_FIELD_LOGS);
+    seedInitialTransformerIncidentsIfEmpty(INITIAL_TRANSFORMER_INCIDENTS);
 
     // 2. Real-time Firestore listener for transformers (instant push across all devices worldwide)
     const unsubTransformers = subscribeToTransformers((remoteTransformers) => {
@@ -852,6 +969,14 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     });
 
+    // 8. Real-time Firestore listener for emergency incident logs
+    const unsubTransformerIncidents = subscribeToTransformerIncidents((remoteIncidents) => {
+      if (Array.isArray(remoteIncidents) && remoteIncidents.length > 0) {
+        setTransformerIncidents(remoteIncidents);
+        localStorage.setItem(TRANSFORMER_INCIDENTS_KEY, JSON.stringify(remoteIncidents));
+      }
+    });
+
     return () => {
       unsubTransformers();
       unsubAccounts();
@@ -859,6 +984,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
       unsubInspections();
       unsubLineCutoutRecords();
       unsubQuickFieldLogs();
+      unsubTransformerIncidents();
     };
   }, []);
 
@@ -966,7 +1092,7 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const addAuditLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newItem: AuditLogItem = {
-      id: Date.now().toString(),
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       timestamp: 'เมื่อสักครู่',
       message,
       type,
@@ -1497,6 +1623,18 @@ export const TransformerProvider: React.FC<{ children: ReactNode }> = ({ childre
         deleteInspection,
         resetInspections,
         createInspectionForTransformer,
+        transformerIncidents,
+        saveTransformerIncident,
+        deleteTransformerIncident,
+        getIncidentsForTransformer,
+        getActiveMismatchNotice,
+        isIncidentModalOpen,
+        setIsIncidentModalOpen,
+        incidentTargetTransformerId,
+        setIncidentTargetTransformerId,
+        editingIncident,
+        setEditingIncident,
+        openIncidentModalForTransformer,
         metrics,
       }}
     >

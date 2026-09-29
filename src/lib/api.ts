@@ -1,4 +1,4 @@
-import { Transformer, AccountRecord, AuditLogItem, InspectionRecord } from '../types';
+import { Transformer, AccountRecord, AuditLogItem, InspectionRecord, TransformerIncidentLog } from '../types';
 
 export interface SyncStatus {
   lastUpdated: number;
@@ -301,3 +301,43 @@ export async function deleteQuickFieldLogApi(id: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function fetchTransformerIncidentsApi(): Promise<{ data: TransformerIncidentLog[] }> {
+  try {
+    const res = await fetch('/api/transformer-incidents', { credentials: 'same-origin' });
+    if (!res.ok) return { data: [] };
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch transformer incidents from server API:', err);
+    return { data: [] };
+  }
+}
+
+export async function saveTransformerIncidentApi(incident: TransformerIncidentLog): Promise<boolean> {
+  try {
+    const res = await fetch('/api/transformer-incidents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(incident),
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save transformer incident to server API:', err);
+    return false;
+  }
+}
+
+export async function deleteTransformerIncidentApi(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/transformer-incidents/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to delete transformer incident from server API:', err);
+    return false;
+  }
+}
+

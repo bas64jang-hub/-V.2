@@ -1,9 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useTransformers } from '../context/TransformerContext';
-import { InspectionRecord, VisualCheckItem, VisualCheckStatus, InspectionStatus } from '../types';
+import { InspectionRecord, VisualCheckItem, VisualCheckStatus, InspectionStatus, EvaluationCriterion } from '../types';
 import { DEFAULT_VISUAL_CHECKS } from '../data/defaultInspections';
 import { InspectionAnalysisPanel } from './InspectionAnalysisPanel';
 import { analyzeTransformerAgainstStandards } from '../lib/peaStandards';
+import {
+  generateStandardCriteriaEvaluations,
+  evaluateCriteriaWithAiApi,
+  evaluateCriteriaWithStandardRules,
+} from '../lib/peaEvaluationCriteria';
 import {
   ClipboardCheck,
   FileText,
@@ -29,6 +34,8 @@ import {
   ChevronRight,
   Download,
   Info,
+  Lock,
+  Loader2,
 } from 'lucide-react';
 
 export const InspectionModuleView: React.FC = () => {
@@ -69,6 +76,9 @@ export const InspectionModuleView: React.FC = () => {
     if (currentRecord) return JSON.parse(JSON.stringify(currentRecord));
     return createEmptyRecord();
   });
+
+  // AI Evaluation loading state
+  const [isAiEvaluating, setIsAiEvaluating] = useState<boolean>(false);
 
   // Keep form in sync when currentRecord changes
   React.useEffect(() => {
@@ -268,6 +278,73 @@ export const InspectionModuleView: React.FC = () => {
       avgI: Math.round(avgI * 10) / 10,
     };
   }, [formData.loadMeasurement, formData.ratedKva]);
+
+  // Active evaluation criteria (auto-computed from standard rules if not yet set in formData)
+  const activeCriteria: EvaluationCriterion[] = useMemo(() => {
+    if (formData.criteriaEvaluations && formData.criteriaEvaluations.length >= 6) {
+      return formData.criteriaEvaluations;
+    }
+    return generateStandardCriteriaEvaluations(formData);
+  }, [formData]);
+
+  // Instant PEA Standard Evaluation (Deterministic rule engine, 100% reliable without external network)
+  const handleInstantStandardEvaluation = () => {
+    const result = evaluateCriteriaWithStandardRules(formData);
+    setFormData((prev) => ({
+      ...prev,
+      criteriaEvaluations: result.criteria,
+      overallClassification: result.overallClassification,
+      overallResult: result.overallResult,
+      summaryNotes: result.overallSummary,
+      actionItems: result.overallActionItems,
+    }));
+    showToast(
+      `ประเมินผลตามเกณฑ์มาตรฐาน กฟภ. 2568 สำเร็จ: ${result.overallClassification}`,
+      'PEA_RULES_EVAL_DONE',
+      'success'
+    );
+  };
+
+  // AI Evaluation handler based on PEA 2568 standards with seamless fallback
+  const handleAiEvaluateCriteria = async () => {
+    setIsAiEvaluating(true);
+    try {
+      showToast('กำลังส่งข้อมูลให้ AI วิเคราะห์ตามเกณฑ์มาตรฐาน กฟภ. 2568...', 'AI_EVAL_START', 'info');
+      const result = await evaluateCriteriaWithAiApi(formData);
+
+      setFormData((prev) => ({
+        ...prev,
+        criteriaEvaluations: result.criteria,
+        overallClassification: result.overallClassification,
+        overallResult: result.overallResult,
+        summaryNotes: result.overallSummary,
+        actionItems: result.overallActionItems,
+      }));
+
+      const isFallback = result.mode?.includes('standard-rule-engine') || result.mode?.includes('fallback');
+      showToast(
+        isFallback
+          ? `ประเมินผลตามเกณฑ์มาตรฐาน กฟภ. 2568 สำเร็จ: ${result.overallClassification} (ระบบสำรองมาตรฐาน)`
+          : `AI วิเคราะห์สรุปผลและข้อเสนอแนะแยกตาม 6 เกณฑ์มาตรฐาน กฟภ. สำเร็จ: ${result.overallClassification}`,
+        'AI_EVAL_DONE',
+        'success'
+      );
+    } catch (err) {
+      console.warn('AI evaluation error, falling back to local standard evaluation:', err);
+      const fallback = evaluateCriteriaWithStandardRules(formData);
+      setFormData((prev) => ({
+        ...prev,
+        criteriaEvaluations: fallback.criteria,
+        overallClassification: fallback.overallClassification,
+        overallResult: fallback.overallResult,
+        summaryNotes: fallback.overallSummary,
+        actionItems: fallback.overallActionItems,
+      }));
+      showToast(`ประเมินผลตามเกณฑ์มาตรฐาน กฟภ. สำเร็จ: ${fallback.overallClassification}`, 'AI_FALLBACK', 'info');
+    } finally {
+      setIsAiEvaluating(false);
+    }
+  };
 
   // Update visual check item status
   const handleVisualCheckChange = (id: string, status: VisualCheckStatus, remark?: string) => {
@@ -1863,80 +1940,215 @@ export const InspectionModuleView: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[11px] font-bold text-emerald-950 uppercase font-mono tracking-wider">
-                        PEA 2568 STANDARD EVALUATION ENGINE
+                        PEA 2568 STANDARD &amp; AI CRITERIA EVALUATION ENGINE
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900 font-bold font-sans">
-                        วิเคราะห์เปรียบเทียบค่าหน้างานอัตโนมัติ
+                        วิเคราะห์แยก 6 เกณฑ์มาตรฐาน
                       </span>
                     </div>
                     <p className="text-xs text-slate-700 mt-1">
-                      ระบบประมวลผลเปรียบเทียบค่าที่กรอกหน้างาน (ค่าความต้านทานดิน, ค่าฉนวน R1/R10/PI, ค่า BDV น้ำมัน, ความไม่สมดุลขดลวด, % โหลด) เทียบกับเกณฑ์มาตรฐาน กฟภ. ปี 2568 ทันที
+                      ระบบประมวลผลข้อมูลตรวจวัดเทียบกับระเบียบ กฟภ. ปี 2568 โดย AI จะทำการคิดสรุปผลและข้อเสนอแนะเชิงวิศวกรรมในแต่ละเกณฑ์ พร้อมล็อกผลการประเมิน (Read-Only) ป้องกันการแก้ไขเปลี่ยนแปลง เพื่อความถูกต้องตามหลักวิศวกรรม
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                <div className="flex items-center gap-2 shrink-0 self-end md:self-auto flex-wrap">
                   <button
                     type="button"
                     onClick={() => setActiveSubTab('analysis')}
                     className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
                   >
                     <Eye className="w-3.5 h-3.5 text-slate-500" />
-                    <span>ดูตารางเปรียบเทียบ &amp; ตัวเลือกงาน</span>
+                    <span>ดูตารางเทียบเกณฑ์</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      const defectCount = formData.visualChecks?.filter((v) => v.status === 'defect').length || 0;
-                      const warningCount = formData.visualChecks?.filter((v) => v.status === 'warning').length || 0;
-                      const decision = analyzeTransformerAgainstStandards({
-                        ratedKva: formData.ratedKva,
-                        hvVoltageKv: formData.hvVoltageKv,
-                        tempC: formData.insulationTest?.ambientTempC || 30,
-                        hvGround1Min: formData.insulationTest?.hvGround1Min,
-                        hvGround10Min: formData.insulationTest?.hvGround10Min,
-                        polarizationIndex: calculatedPI,
-                        lvGround1Min: formData.insulationTest?.lvGround1Min,
-                        hvLv1Min: formData.insulationTest?.hvLv1Min,
-                        avgBdvKv: bdvAverage,
-                        surgeArresterGroundOhm: formData.groundTest?.surgeArresterGroundOhm,
-                        lvNeutralGroundOhm: formData.groundTest?.lvNeutralGroundOhm,
-                        loadPercent: calculatedLoadMetrics.loadPct,
-                        currentUnbalancePercent: calculatedLoadMetrics.unbalanceCurrent,
-                        visualChecksDefectCount: defectCount,
-                        visualChecksWarningCount: warningCount,
-                        tankDamaged: formData.tankDamaged,
-                        ageYears: formData.mfgYear ? new Date().getFullYear() - parseInt(formData.mfgYear) : 5,
-                      });
-
-                      const newResult: InspectionStatus =
-                        decision.overallClassification === 'หม้อแปลงดี'
-                          ? 'pass'
-                          : decision.overallClassification === 'หม้อแปลงชำรุดเล็กน้อย'
-                          ? 'warning'
-                          : decision.overallClassification === 'หม้อแปลงชำรุดหนัก'
-                          ? 'corrective'
-                          : 'segregate';
-
-                      setFormData((prev) => ({
-                        ...prev,
-                        overallResult: newResult,
-                        summaryNotes: decision.summaryExecutive,
-                        actionItems: decision.actionOptions.map((a) => `${a.stepNumber}. ${a.title}: ${a.procedure[0] || ''}`).join(' | '),
-                      }));
-
-                      showToast(`ปรับผลการประเมินเป็น "${decision.overallClassification}" และเติมข้อเสนอแนะตามมาตรฐาน กฟภ. เรียบร้อย`, 'AUTO_EVAL_OK', 'success');
-                    }}
-                    className="px-3.5 py-1.5 bg-[#006948] hover:bg-[#005238] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                    onClick={handleInstantStandardEvaluation}
+                    className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-[#006948] border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                    title="ประเมินผลตามเกณฑ์มาตรฐาน กฟภ. 2568 ทันที เสถียร 100% ไม่ต้องรอ AI"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-                    <span>สรุปผลตามมาตรฐานอัตโนมัติ</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>⚡ ประเมินผลตามมาตรฐาน กฟภ. (ทันที)</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isAiEvaluating}
+                    onClick={handleAiEvaluateCriteria}
+                    className="px-3.5 py-1.5 bg-[#006948] hover:bg-[#005238] disabled:bg-slate-400 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                  >
+                    {isAiEvaluating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 text-emerald-200 animate-spin" />
+                        <span>กำลังประมวลผล...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-emerald-200" />
+                        <span>🤖 วิเคราะห์ด้วย AI / ระบบมาตรฐาน</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
 
+              {/* Immutable AI Notice */}
+              <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-950">
+                    ระบบล็อกผลการประเมินและข้อเสนอแนะโดย AI (Non-Editable / Locked Criteria):
+                  </span>{' '}
+                  ตรงสรุปผลและข้อเสนอแนะในแต่ละเกณฑ์ถูกแบ่งแยกอย่างเป็นระบบ และสร้างโดยระบบ AI ตามมาตรฐานการตรวจสอบ กฟภ. ปี 2568 โดยถูกล็อกไม่ให้สามารถแก้ไขเปลี่ยนแปลงได้ เพื่อรักษามาตรฐานความเที่ยงตรงทางวิศวกรรมไฟฟ้าและความโปร่งใสของเอกสาร มป.11
+                </div>
+              </div>
+
+              {/* Categorized Criteria Evaluation List (6 เกณฑ์มาตรฐาน) */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      การแบ่งแยกเกณฑ์การประเมินมาตรฐาน กฟภ. (6 ด้าน)
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-semibold">
+                    อ้างอิงแบบฟอร์ม ข-2 มป.11-ป.68
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {activeCriteria.map((criterion, idx) => (
+                    <div
+                      key={criterion.id}
+                      className="border border-slate-200 hover:border-slate-300 rounded-xl p-4 sm:p-5 bg-slate-50/60 shadow-2xs flex flex-col gap-3.5 transition-colors"
+                    >
+                      {/* Criterion Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs">
+                            {idx + 1}
+                          </span>
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {criterion.name}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            {criterion.category}
+                          </span>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div className="shrink-0 self-start sm:self-auto">
+                          {criterion.status === 'pass' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>ผ่านเกณฑ์มาตรฐาน</span>
+                            </span>
+                          )}
+                          {criterion.status === 'warning' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                              <span>เฝ้าระวัง (Watchlist)</span>
+                            </span>
+                          )}
+                          {criterion.status === 'fail' && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>ไม่ผ่านเกณฑ์ / ต้องแก้ไข</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Symmetric Info Row: Benchmark & Field Measurements */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 bg-white rounded-lg border border-slate-200 flex flex-col gap-1">
+                          <span className="font-bold text-slate-700 flex items-center gap-1 text-[11px]">
+                            <span>📘</span> เกณฑ์มาตรฐาน กฟภ. (Benchmark):
+                          </span>
+                          <p className="text-slate-600 text-[11px] leading-relaxed">
+                            {criterion.standardBenchmark}
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-lg border border-slate-200 flex flex-col gap-1">
+                          <span className="font-bold text-slate-700 flex items-center gap-1 text-[11px]">
+                            <span>📊</span> ค่าที่ตรวจวัดได้หน้างาน (Field Measurement):
+                          </span>
+                          <p className="text-slate-800 text-[11px] font-mono font-semibold leading-relaxed">
+                            {criterion.measuredSummary}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Locked AI Summary & AI Recommendation (Symmetric 2 Columns) */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        {/* AI Summary - Locked */}
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-slate-800 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>สรุปผลการประเมิน (โดย AI วิเคราะห์จากมาตรฐาน)</span>
+                            </label>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                              <Lock className="w-3 h-3 text-slate-500" />
+                              <span>ล็อก (ไม่สามารถแก้ไขได้)</span>
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <textarea
+                              rows={3}
+                              readOnly
+                              disabled
+                              value={criterion.aiSummary || 'รอการประมวลผลจากระบบ AI...'}
+                              className="w-full bg-slate-100/90 text-slate-800 border border-slate-300 rounded-lg p-2.5 text-xs leading-relaxed font-medium select-text cursor-not-allowed opacity-95 focus:outline-hidden"
+                            />
+                            <div className="absolute right-2.5 bottom-2.5 text-slate-400 pointer-events-none">
+                              <Lock className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-slate-400" />
+                            <span>ข้อความสรุปผลวิเคราะห์ถูกสร้างและล็อกโดย AI ตามเกณฑ์มาตรฐาน กฟภ.</span>
+                          </span>
+                        </div>
+
+                        {/* AI Recommendation - Locked */}
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-slate-800 flex items-center gap-1">
+                              <Activity className="w-3.5 h-3.5 text-[#006948]" />
+                              <span>ข้อเสนอแนะและมาตรการแก้ไข (โดย AI ตามระเบียบ กฟภ.)</span>
+                            </label>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                              <Lock className="w-3 h-3 text-slate-500" />
+                              <span>ล็อก (ไม่สามารถแก้ไขได้)</span>
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <textarea
+                              rows={3}
+                              readOnly
+                              disabled
+                              value={criterion.aiRecommendation || 'รอการประมวลผลจากระบบ AI...'}
+                              className="w-full bg-slate-100/90 text-slate-800 border border-slate-300 rounded-lg p-2.5 text-xs leading-relaxed font-medium select-text cursor-not-allowed opacity-95 focus:outline-hidden"
+                            />
+                            <div className="absolute right-2.5 bottom-2.5 text-slate-400 pointer-events-none">
+                              <Lock className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-slate-400" />
+                            <span>มาตรการทางวิศวกรรมถูกสร้างและล็อกโดย AI ตามระเบียบ กฟภ. 2568</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Status Radio Picker */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-200">
                 <label className="font-bold text-slate-800 text-xs">
                   ผลการประเมินสภาพหม้อแปลงโดยรวม (Overall Assessment Result) *
                 </label>
@@ -1991,25 +2203,49 @@ export const InspectionModuleView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Text Notes */}
+              {/* Overall Executive Text Notes (Synthesized from 6 Criteria & Locked) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">สรุปผลการตรวจสอบ / ข้อคิดเห็น</label>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 block">
+                      สรุปผลการตรวจสอบภาพรวม (Overall Summary - โดย AI)
+                    </label>
+                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-600 font-semibold bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+                      <Lock className="w-3 h-3 text-slate-500" />
+                      <span>ล็อกผลประเมิน</span>
+                    </span>
+                  </div>
                   <textarea
-                    rows={3}
+                    rows={4}
+                    readOnly
+                    disabled
                     value={formData.summaryNotes}
-                    onChange={(e) => setFormData({ ...formData, summaryNotes: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full bg-slate-100/90 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-medium select-text cursor-not-allowed opacity-95 focus:outline-hidden"
                   />
+                  <span className="text-[10px] text-slate-500">
+                    🔒 สรุปผลภาพรวมถูกสังเคราะห์จาก 6 เกณฑ์มาตรฐานโดย AI ตามระเบียบ กฟภ.
+                  </span>
                 </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">ข้อเสนอแนะและงานแก้ไข (Action Items)</label>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 block">
+                      ข้อเสนอแนะและงานแก้ไขภาพรวม (Overall Action Items - โดย AI)
+                    </label>
+                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-600 font-semibold bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+                      <Lock className="w-3 h-3 text-slate-500" />
+                      <span>ล็อกมาตรการ</span>
+                    </span>
+                  </div>
                   <textarea
-                    rows={3}
+                    rows={4}
+                    readOnly
+                    disabled
                     value={formData.actionItems}
-                    onChange={(e) => setFormData({ ...formData, actionItems: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full bg-slate-100/90 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-medium select-text cursor-not-allowed opacity-95 focus:outline-hidden"
                   />
+                  <span className="text-[10px] text-slate-500">
+                    🔒 ข้อเสนอแนะและมาตรการแก้ไขถูกสังเคราะห์จาก 6 เกณฑ์มาตรฐานโดย AI
+                  </span>
                 </div>
               </div>
 
@@ -2132,23 +2368,33 @@ export const InspectionModuleView: React.FC = () => {
             formData={formData}
             onApplyRecommendation={(classification, summary, actions) => {
               const mappedStatus: InspectionStatus =
-                classification === 'หม้อแปลงดี'
+                classification === 'pass' || classification === 'หม้อแปลงดี'
                   ? 'pass'
-                  : classification === 'หม้อแปลงชำรุดเล็กน้อย'
+                  : classification === 'warning' || classification === 'หม้อแปลงชำรุดเล็กน้อย'
                   ? 'warning'
-                  : classification === 'หม้อแปลงชำรุดหนัก'
+                  : classification === 'corrective' || classification === 'หม้อแปลงชำรุดหนัก'
                   ? 'corrective'
                   : 'segregate';
+
+              const thaiClassification: TransformerClassification =
+                mappedStatus === 'pass'
+                  ? 'หม้อแปลงดี'
+                  : mappedStatus === 'warning'
+                  ? 'หม้อแปลงชำรุดเล็กน้อย'
+                  : mappedStatus === 'corrective'
+                  ? 'หม้อแปลงชำรุดหนัก'
+                  : 'หม้อแปลงชำรุดหนักเห็นควรจำหน่าย';
 
               setFormData((prev) => ({
                 ...prev,
                 overallResult: mappedStatus,
+                overallClassification: thaiClassification,
                 summaryNotes: summary,
                 actionItems: actions,
               }));
 
               showToast(
-                `นำผลวิเคราะห์ (${classification}) และแนวทางแก้ไขไปปรับสรุปผลเรียบร้อย`,
+                `นำผลวิเคราะห์ (${thaiClassification}) และแนวทางแก้ไขไปปรับสรุปผลเรียบร้อย`,
                 'APPLY_RECOMMENDATION_OK',
                 'success'
               );
@@ -2355,11 +2601,53 @@ export const InspectionModuleView: React.FC = () => {
 
             {/* Operating Load & Assessment */}
             <div className="mt-4 border border-slate-400 rounded text-xs font-sans">
-              <div className="bg-slate-100 px-3 py-1.5 font-bold border-b border-slate-300">
-                5. สรุปผลการประเมินสภาพหม้อแปลงและข้อเสนอแนะ
+              <div className="bg-slate-100 px-3 py-1.5 font-bold border-b border-slate-300 flex items-center justify-between">
+                <span>5. สรุปผลการประเมินแยกตามเกณฑ์มาตรฐาน กฟภ. (6 ด้าน) และข้อเสนอแนะ</span>
+                <span className="text-[10px] text-slate-600 font-normal">ประเมินและล็อกผลโดยระบบ AI</span>
               </div>
-              <div className="p-3 text-[11px] flex flex-col gap-2">
-                <div className="flex items-center gap-2">
+              <div className="p-3 text-[11px] flex flex-col gap-3">
+                {/* 6 Criteria Table */}
+                <div className="overflow-x-auto border border-slate-300 rounded">
+                  <table className="w-full text-left text-[10px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 text-slate-800">
+                        <th className="p-1.5 w-8 text-center">ข้อ</th>
+                        <th className="p-1.5 w-48">เกณฑ์การประเมิน</th>
+                        <th className="p-1.5 w-24 text-center">สถานะ</th>
+                        <th className="p-1.5">สรุปผลการประเมิน (โดย AI)</th>
+                        <th className="p-1.5">ข้อเสนอแนะ/มาตรการแก้ไข (โดย AI)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {activeCriteria.map((c, i) => (
+                        <tr key={c.id} className="align-top">
+                          <td className="p-1.5 text-center font-bold text-slate-600">{i + 1}</td>
+                          <td className="p-1.5 font-medium text-slate-900">
+                            <div>{c.name}</div>
+                            <div className="text-[9px] text-slate-500 font-mono mt-0.5">{c.measuredSummary}</div>
+                          </td>
+                          <td className="p-1.5 text-center">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                c.status === 'pass'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : c.status === 'warning'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {c.status === 'pass' ? 'ผ่านเกณฑ์' : c.status === 'warning' ? 'เฝ้าระวัง' : 'ไม่ผ่าน'}
+                            </span>
+                          </td>
+                          <td className="p-1.5 text-slate-800 leading-snug">{c.aiSummary}</td>
+                          <td className="p-1.5 text-slate-800 leading-snug">{c.aiRecommendation}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
                   <span className="font-bold text-slate-800">ผลการประเมินโดยรวม:</span>
                   <span
                     className={`px-3 py-1 rounded font-bold uppercase ${
@@ -2380,10 +2668,10 @@ export const InspectionModuleView: React.FC = () => {
                   </span>
                 </div>
                 <div>
-                  <span className="font-semibold">ข้อสรุปผล:</span> {formData.summaryNotes || '-'}
+                  <span className="font-semibold">ข้อสรุปภาพรวม:</span> {formData.summaryNotes || '-'}
                 </div>
                 <div>
-                  <span className="font-semibold">การดำเนินการที่แนะนำ:</span> {formData.actionItems || '-'}
+                  <span className="font-semibold">การดำเนินการที่แนะนำภาพรวม:</span> {formData.actionItems || '-'}
                 </div>
               </div>
             </div>

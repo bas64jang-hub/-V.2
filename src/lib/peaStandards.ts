@@ -241,6 +241,25 @@ export function analyzeTransformerAgainstStandards(data: {
   const temp = data.tempC || 30;
   const hvKv = data.hvVoltageKv || 22;
 
+  // 0. Visual Checks
+  if ((data.visualChecksDefectCount || 0) > 0 || (data.visualChecksWarningCount || 0) > 0 || data.tankDamaged) {
+    const dCount = data.visualChecksDefectCount || 0;
+    const wCount = data.visualChecksWarningCount || 0;
+    const isTank = Boolean(data.tankDamaged);
+    diagnostics.push({
+      id: 'diag-visual',
+      name: 'การตรวจสภาพภายนอกและโครงสร้างกายภาพ (15 ข้อ)',
+      category: 'visual',
+      standardText: 'สมบูรณ์ครบ 15 ข้อ ปราศจากจุดชำรุด',
+      fieldValueText: isTank ? 'ตัวถังชำรุด/บวม' : dCount > 0 ? `พบจุดชำรุด ${dCount} ข้อ` : `เฝ้าระวัง ${wCount} ข้อ`,
+      status: isTank || dCount > 0 ? 'fail' : 'warning',
+      deviationText: isTank ? 'ตัวถังชำรุดร้ายแรง' : dCount > 0 ? `ชำรุด ${dCount} รายการ` : `เฝ้าระวัง ${wCount} รายการ`,
+      referenceClause: 'แบบฟอร์ม มป.11 ข้อ 1-15',
+      findingSummary: isTank ? 'ตัวถังหม้อแปลงมีความเสียหายทางกายภาพร้ายแรง' : dCount > 0 ? `พบจุดชำรุดภายนอก ${dCount} จุด` : `มีจุดที่ต้องเฝ้าระวัง ${wCount} จุด`,
+      recommendation: isTank ? 'ปลดสับเปลี่ยนหม้อแปลงทันที' : dCount > 0 ? 'เปิดใบสั่งงาน ZPM4 เปลี่ยนอะไหล่และปะเก็น' : 'เปลี่ยนซิลิก้าเจลและกวดขันขอบปะเก็นตามวาระ',
+    });
+  }
+
   // 1. Insulation Resistance HV - G
   const stdHvG = getStandardInsulationResistance(hvKv, 'HV-G', temp);
   const valHvG = data.hvGround1Min || 0;
@@ -262,6 +281,54 @@ export function analyzeTransformerAgainstStandards(data: {
       recommendation: isPass
         ? 'ไม่ต้องดำเนินการแก้ไข'
         : 'ตรวจสอบทำความสะอาดผิวบุชชิ่งแรงสูง และเตรียมนำเข้าเตาอบไล่ความชื้นหากค่ายังต่ำ',
+    });
+  }
+
+  // 1.1 Insulation Resistance LV - G
+  const stdLvG = getStandardInsulationResistance(hvKv, 'LV-G', temp);
+  const valLvG = data.lvGround1Min || 0;
+  if (valLvG > 0) {
+    const isPass = valLvG >= stdLvG;
+    const isWarn = !isPass && valLvG >= stdLvG * 0.5;
+    diagnostics.push({
+      id: 'diag-lv-g',
+      name: 'ความต้านทานฉนวน LV - Ground (1 นาที)',
+      category: 'insulation',
+      standardText: `≥ ${stdLvG} MΩ (ที่ ${temp}°C)`,
+      fieldValueText: `${valLvG} MΩ`,
+      status: isPass ? 'pass' : isWarn ? 'warning' : 'fail',
+      deviationText: isPass ? `ผ่าน (+${valLvG - stdLvG} MΩ)` : `ต่ำกว่าเกณฑ์ (${valLvG - stdLvG} MΩ)`,
+      referenceClause: 'ข้อ 2.1.2 หน้า 19',
+      findingSummary: isPass
+        ? `ค่าความเป็นฉนวนขดลวดแรงต่ำเทียบดินปกติ ณ อุณหภูมิ ${temp}°C`
+        : `ค่าความเป็นฉนวน LV-G ต่ำกว่าเกณฑ์มาตรฐาน ณ อุณหภูมิ ${temp}°C`,
+      recommendation: isPass
+        ? 'ไม่ต้องดำเนินการแก้ไข'
+        : 'ตรวจสอบทำความสะอาดผิวบุชชิ่งแรงต่ำและตรวจการรั่วซึมของซีล',
+    });
+  }
+
+  // 1.2 Insulation Resistance HV - LV
+  const stdHvLv = getStandardInsulationResistance(hvKv, 'HV-LV', temp);
+  const valHvLv = data.hvLv1Min || 0;
+  if (valHvLv > 0) {
+    const isPass = valHvLv >= stdHvLv;
+    const isWarn = !isPass && valHvLv >= stdHvLv * 0.5;
+    diagnostics.push({
+      id: 'diag-hv-lv',
+      name: 'ความต้านทานฉนวน HV - LV (1 นาที)',
+      category: 'insulation',
+      standardText: `≥ ${stdHvLv} MΩ (ที่ ${temp}°C)`,
+      fieldValueText: `${valHvLv} MΩ`,
+      status: isPass ? 'pass' : isWarn ? 'warning' : 'fail',
+      deviationText: isPass ? `ผ่าน (+${valHvLv - stdHvLv} MΩ)` : `ต่ำกว่าเกณฑ์ (${valHvLv - stdHvLv} MΩ)`,
+      referenceClause: 'ข้อ 2.1.2 หน้า 19',
+      findingSummary: isPass
+        ? `ค่าความเป็นฉนวนระหว่างขดลวดแรงสูงและแรงต่ำปกติ ปราศจากการลัดวงจรระหว่างขดลวด`
+        : `ค่าความเป็นฉนวน HV-LV ต่ำกว่าเกณฑ์มาตรฐาน เสี่ยงต่อการลัดวงจรระหว่างขดลวด`,
+      recommendation: isPass
+        ? 'ไม่ต้องดำเนินการแก้ไข'
+        : 'นำหม้อแปลงเข้าตรวจสอบในห้องปฏิบัติการเพื่ออบไล่ความชื้นและตรวจสอบฉนวนคั่นขดลวด',
     });
   }
 
